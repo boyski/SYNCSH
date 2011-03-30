@@ -45,4 +45,4 @@ Syncsh can also be used without modifying any files:
 
 Note that this example also specifies the "real shell" to hand off
 to. There may be other useful SYNCSH_* environment variables; see
-the source code.
+the usage message or the source code. Run with no arguments for usage.
