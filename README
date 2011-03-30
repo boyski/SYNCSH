@@ -1,0 +1,48 @@
+Parallelism in software builds can be extremely valuable in
+speeding them up.  Unfortunately a side effect is that the textual
+build logs get mixed up as results are reported asynchronously.
+This can make it hard - or even impossible - to debug build
+errors.
+
+The "syncsh" program is a tiny shell wrapper which looks enough
+like a shell that make programs such as GNU make can specify it as
+their shell, though in fact it forks a "real" shell such as /bin/sh
+to do the actual work. The value added, in return for that extra
+process, is that it holds onto the output of the real shell and
+coordinates with any other running instances of itself before
+dumping it to stdout. The result is that the output of each syncsh
+instance is written atomically.
+
+The net effect is to "re-synchronize" the output of asynchronous
+jobs. Note that no guarantee is made that jobs will report in the
+"right" order (since in parallel processing there is no right
+order), only that the order will be sensible and that the results
+of different tasks will not be intermingled.
+
+Though GNU make is not an archtitectural requirement, this program
+was written with the intention of use with GNU make. All make
+programs run commands by calling the shell like this
+
+    /bin/sh -c "command"
+
+Which is the only usage pattern synch currently understands. It
+_should_ work with any parallel build program which uses this
+pattern.
+
+IMPORTANT: syncsh needs a file to use for synchronization
+purposes.  This file must be writeable, although syncsh will NOT
+write to it (this is a requirement of the locking API in use). A
+good candidate would be the top-level Makefile. Thus, for example,
+you could use syncsh by adding the following lines to a GNU
+makefile:
+
+SHELL		= /full/path/to/syncsh
+SYNCSH_LOCKFILE	= $(CURDIR)/Makefile
+
+Syncsh can also be used without modifying any files:
+
+% SYNCSH_LOCKFILE=`pwd`/Makefile SYNCSH_SHELL=/bin/bash gmake SHELL=/full/path/to/syncsh -j12 ...
+
+Note that this example also specifies the "real shell" to hand off
+to. There may be other useful SYNCSH_* environment variables; see
+the source code.
