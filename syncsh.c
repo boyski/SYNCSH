@@ -70,13 +70,13 @@ main(int argc, char *argv[])
     prog = basename(argv[0]);
 
     if (argc != 3 || argv[1][0] != '-') {
-	fprintf(stderr, "Usage: %s -<flags> <command>\n", basename(argv[0]));
+	fprintf(stderr, "Usage: %s -<flags> <command>\n", prog);
 	fprintf(stderr, "  " "where <flags> will typically be -c but may be any single word\n");
 	fprintf(stderr, "Environment variables:\n");
 	fprintf(stderr, "  " PFX "SHELL: path of the shell to hand off to\n");
 	fprintf(stderr, "  " PFX "LOCKFILE: full path to a writable file for locking\n");
 	fprintf(stderr, "  " PFX "TEE: file to which output will be appended\n");
-	fprintf(stderr, "  " PFX "VERBOSE: non-null and non-zero for additional verbosity\n");
+	fprintf(stderr, "  " PFX "VERBOSE: set to non-zero integer for additional verbosity\n");
 	return 1;
     }
 
@@ -157,7 +157,7 @@ main(int argc, char *argv[])
 	 * We want to keep it as short as possible.
 	 */
 	while ((bytesRead = fread(buffer, 1, sizeof(buffer), tempfp)) > 0) {
-	    if (verbose) {
+	    if (verbose && atoi(verbose)) {
 		write(1, recipe, strlen(recipe));
 		write(1, "\n", 1);
 	    }
