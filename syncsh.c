@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 
 #define PFX	"SYNCSH_"
+#define BARS	"======================================================\n"
 
 static char *prog = "???";
 
@@ -49,6 +50,19 @@ dbg(const char *fmt, ...)
 }
 #endif
 
+static void
+usage(void)
+{
+    fprintf(stderr, "Usage: %s -<flags> <command>\n", prog);
+    fprintf(stderr, "  " "where <flags> will typically be -c\n");
+    fprintf(stderr, "Environment variables:\n");
+    fprintf(stderr, "  " PFX "LOCKFILE: full path to a writable lock file\n");
+    fprintf(stderr, "  " PFX "SHELL: path of the shell to hand off to\n");
+    fprintf(stderr, "  " PFX "TEE: file to which output will be appended\n");
+    fprintf(stderr, "  " PFX "VERBOSE: nonzero int for extra verbosity\n");
+    exit(1);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -62,43 +76,37 @@ main(int argc, char *argv[])
     char *sh;
     char *recipe;
     char *tee;
-    char *makelist;
     char *lockfile;
     char *verbose;
     char *shargv[4];
 
     prog = basename(argv[0]);
 
-    if (argc != 3 || argv[1][0] != '-') {
-	fprintf(stderr, "Usage: %s -<flags> <command>\n", prog);
-	fprintf(stderr, "  " "where <flags> will typically be -c but may be any single word\n");
-	fprintf(stderr, "Environment variables:\n");
-	fprintf(stderr, "  " PFX "SHELL: path of the shell to hand off to\n");
-	fprintf(stderr, "  " PFX "LOCKFILE: full path to a writable file for locking\n");
-	fprintf(stderr, "  " PFX "TEE: file to which output will be appended\n");
-	fprintf(stderr, "  " PFX "VERBOSE: set to non-zero integer for additional verbosity\n");
-	return 1;
+    if (argc <= 1) {
+	usage();
     }
 
     if (!(sh = getenv(PFX "SHELL")))
 	sh = "/bin/sh";
 
+    /*
+     * Here it looks like the shell is being used in a non-standard way
+     * by the makefile itself. E.g. the makefile may contain a literal
+     * "$(SHELL) script ..." in a recipe or in some function.
+     * In this case we don't have to worry about synchronization
+     * because we're not in charge of a recipe.
+     */
+    if (argc != 3 || argv[1][0] != '-' || !strchr(argv[1], 'c')
+	|| argv[2][0] == '-') {
+	argv[0] = sh;
+	execvp(argv[0], argv);
+	syserr(2, argv[0]);
+    }
+
     shargv[0] = sh;
     shargv[1] = argv[1];
     shargv[2] = recipe = argv[2];
     shargv[3] = NULL;
-
-    /*
-     * The $SHELL value is also used for the $(shell ...) function
-     * which has no parallelism requirements. It appears that the
-     * MAKEFILE_LIST variable may not be set when $(shell) assignments
-     * run, so this is a shortcut opportunity.
-     */
-    if (!(makelist = getenv("MAKEFILE_LIST"))) {
-	execvp(shargv[0], shargv);
-	perror(shargv[0]);
-	exit(2);
-    }
 
     if ((tempfp = tmpfile()) == NULL) {
 	syserr(2, "tmpfile");
@@ -129,7 +137,10 @@ main(int argc, char *argv[])
 	    lockfd = teefd;
 	}
     } else if (!lockfile) {
-	if (makelist && (lockfile = strdup(makelist))) {
+	char *makelist;
+
+	if ((makelist = getenv("MAKEFILE_LIST"))
+	    && (lockfile = strdup(makelist))) {
 	    char *t;
 
 	    while (isspace((int)*lockfile))
@@ -156,20 +167,21 @@ main(int argc, char *argv[])
 	 * This is the "critical section" during which the lock is held.
 	 * We want to keep it as short as possible.
 	 */
+	if (verbose && atoi(verbose)) {
+	    write(STDOUT_FILENO, recipe, strlen(recipe));
+	    write(STDOUT_FILENO, "\n", 1);
+	}
+	if (teefd > 0) {
+	    lseek(teefd, 0, SEEK_END);
+	    write(teefd, BARS, sizeof(BARS) - 1);
+	    write(teefd, recipe, strlen(recipe));
+	    write(teefd, "\n", 1);
+	    write(teefd, BARS, sizeof(BARS) - 1);
+	}
 	while ((bytesRead = fread(buffer, 1, sizeof(buffer), tempfp)) > 0) {
-	    if (verbose && atoi(verbose)) {
-		write(1, recipe, strlen(recipe));
-		write(1, "\n", 1);
-	    }
-	    write(1, buffer, bytesRead);
-
-	    if (teefd > 0) {
-		lseek(teefd, 0, SEEK_END);
-		write(teefd, recipe, strlen(recipe));
-		write(teefd, "\n", 1);
+	    write(STDOUT_FILENO, buffer, bytesRead);
+	    if (teefd > 0)
 		write(teefd, buffer, bytesRead);
-		write(teefd, "\n", 1);
-	    }
 	}
 	fclose(tempfp);
     } else {
