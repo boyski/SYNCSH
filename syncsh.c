@@ -13,7 +13,8 @@
 #include <sys/wait.h>
 
 #define PFX	"SYNCSH_"
-#define BARS	"======================================================\n"
+#define BAR1	"------------------------------------------------------\n"
+#define BAR2	"======================================================\n"
 
 static char *prog = "???";
 
@@ -173,10 +174,12 @@ main(int argc, char *argv[])
 	}
 	if (teefd > 0) {
 	    lseek(teefd, 0, SEEK_END);
-	    write(teefd, BARS, sizeof(BARS) - 1);
-	    write(teefd, recipe, strlen(recipe));
-	    write(teefd, "\n", 1);
-	    write(teefd, BARS, sizeof(BARS) - 1);
+	    if (verbose && atoi(verbose)) {
+		write(teefd, BAR1, sizeof(BAR1) - 1);
+		write(teefd, recipe, strlen(recipe));
+		write(teefd, "\n", 1);
+		write(teefd, BAR2, sizeof(BAR2) - 1);
+	    }
 	}
 	while ((bytesRead = fread(buffer, 1, sizeof(buffer), tempfp)) > 0) {
 	    write(STDOUT_FILENO, buffer, bytesRead);
