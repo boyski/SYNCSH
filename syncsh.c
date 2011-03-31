@@ -70,6 +70,7 @@ main(int argc, char *argv[])
     int status = 0;
     int teefd = -1;
     int lockfd = -1;
+    int verbose = 0;
     pid_t child;
     FILE *tempfp;
     char buffer[8192];
@@ -78,7 +79,6 @@ main(int argc, char *argv[])
     char *recipe;
     char *tee;
     char *lockfile;
-    char *verbose;
     char *shargv[4];
 
     prog = basename(argv[0]);
@@ -154,7 +154,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    verbose = getenv(PFX "VERBOSE");
+    verbose = getenv(PFX "VERBOSE") ? atoi(getenv(PFX "VERBOSE")) : 0;
 
     /*
      * Note that we never write to the lockfile but must
@@ -168,13 +168,13 @@ main(int argc, char *argv[])
 	 * This is the "critical section" during which the lock is held.
 	 * We want to keep it as short as possible.
 	 */
-	if (verbose && atoi(verbose)) {
+	if (verbose) {
 	    write(STDOUT_FILENO, recipe, strlen(recipe));
 	    write(STDOUT_FILENO, "\n", 1);
 	}
 	if (teefd > 0) {
 	    lseek(teefd, 0, SEEK_END);
-	    if (verbose && atoi(verbose)) {
+	    if (verbose) {
 		write(teefd, BAR1, sizeof(BAR1) - 1);
 		write(teefd, recipe, strlen(recipe));
 		write(teefd, "\n", 1);
