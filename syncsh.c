@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <libgen.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -134,32 +135,42 @@ main(int argc, char *argv[])
     lockfile = getenv(PFX "LOCKFILE");
 
     if ((tee = getenv(PFX "TEE"))) {
+	if (!is_absolute(tee)) {
+	    fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
+		    prog, tee);
+	    return 2;
+	}
 	teefd = open(tee, O_APPEND | O_WRONLY | O_CREAT, 0644);
 	if (!lockfile) {
 	    lockfile = tee;
 	    lockfd = teefd;
 	}
-    } else if (lockfile) {
-	if (!is_absolute(lockfile)) {
-	    fprintf(stderr, "%s: Error: lockfile '%s' not an absolute path\n",
-		    prog, lockfile);
-	    return 2;
-	}
-    } else {
-	char *makelist;
+    } else if (!lockfile) {
+	char *makelist, *t;
 
 	if ((makelist = getenv("MAKEFILE_LIST"))
 	    && (lockfile = strdup(makelist))) {
-	    char *t;
 
 	    while (isspace((int)*lockfile))
 		lockfile++;
 	    if ((t = strchr(lockfile, ' ')))
 		*t = '\0';
+	    if (!(t = malloc(PATH_MAX + 1)))
+		syserr(2, "malloc");
+	    if (!realpath(lockfile, t))
+		syserr(2, lockfile);
+	    free(lockfile);
+	    lockfile = t;
 	} else {
 	    fprintf(stderr, "%s: Error: no lockfile\n", prog);
 	    return 2;
 	}
+    }
+
+    if (!is_absolute(lockfile)) {
+	fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
+		prog, lockfile);
+	return 2;
     }
 
     verbose = getenv(PFX "VERBOSE") ? atoi(getenv(PFX "VERBOSE")) : 0;
