@@ -1,27 +1,30 @@
-Parallelism in software builds can be extremely valuable in
-speeding them up.  Unfortunately a side effect is that the textual
-build logs get mixed up as results are reported asynchronously.
-This can make it hard - or even impossible - to debug build
-errors.
+Parallelism in software builds can be extremely valuable for
+speeding them up.  Unfortunately a side effect of parallelism is
+that the textual build logs may become scrambled as results are
+reported asynchronously.  This makes it hard - or even impossible -
+to debug build errors.
 
 The "syncsh" program is a tiny shell wrapper which looks enough
 like a shell that make programs such as GNU make can specify it as
-their shell, though in fact it forks a "real" shell such as /bin/sh
-to do the actual work. The value added, in return for that extra
-process, is that it holds onto the output of the real shell and
-coordinates with any other running instances of itself before
-dumping it to stdout. The result is that the output of each syncsh
-instance is written atomically.
+their SHELL value, though in fact it just forks a "real" shell such
+as /bin/sh to do the actual work. Its value added, in return for
+that extra process, is that it holds onto the output of the real
+shell and coordinates with other running instances of itself before
+printing its results to stdout. The result is that the output of
+each make "recipe" is written atomically.
 
-The net effect is to "re-synchronize" the output of asynchronous
-jobs. Note that no guarantee is made that jobs will report in the
-"right" order (since in parallel processing there is no right
-order), only that the order will be sensible and that the results
-of different tasks will not be intermingled.
+Thus syncsh can "re-synchronize" the output of asynchronous jobs.
+Note that no guarantee is made that jobs will report in the "right"
+order (since in parallel processing there is no right order), only
+that the order will be sensible and that the results of different
+tasks will not be intermingled. It would probably be possible to
+enhance syncsh to guarantee results in the same order as a serial
+build but that would require some help from, and thus changes to,
+the make program.
 
 Though GNU make is not an archtitectural requirement, this program
-was written with the intention of use with GNU make. All make
-programs run commands by calling the shell like this
+was written with the intention of use with GNU make. Any make
+program will run its commands by calling the shell like this
 
     /bin/sh -c "command"
 
@@ -38,11 +41,12 @@ makefile:
 
 SHELL		= /full/path/to/syncsh
 SYNCSH_LOCKFILE	= $(CURDIR)/Makefile
+SYNCSH_SHELL	= /bin/bash
 
-Syncsh can also be used without modifying any files:
+Note that this example also specifies a shell to hand off to.
+Syncsh can also be used without modifying any makefiles:
 
-% SYNCSH_LOCKFILE=`pwd`/Makefile SYNCSH_SHELL=/bin/bash gmake SHELL=/full/path/to/syncsh -j12 ...
+% SYNCSH_LOCKFILE=`pwd`/Makefile gmake SHELL=/full/path/to/syncsh -j12 ...
 
-Note that this example also specifies the "real shell" to hand off
-to. There may be other useful SYNCSH_* environment variables; see
-the usage message or the source code. Run with no arguments for usage.
+There may be other useful SYNCSH_* environment variables; see the
+usage message or the source code. Run with no arguments for usage.
