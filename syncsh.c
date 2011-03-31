@@ -16,6 +16,8 @@
 #define BAR1	"------------------------------------------------------\n"
 #define BAR2	"======================================================\n"
 
+#define is_absolute(path)		(*path == '/')
+
 static char *prog = "???";
 
 static void
@@ -137,7 +139,13 @@ main(int argc, char *argv[])
 	    lockfile = tee;
 	    lockfd = teefd;
 	}
-    } else if (!lockfile) {
+    } else if (lockfile) {
+	if (!is_absolute(lockfile)) {
+	    fprintf(stderr, "%s: Error: lockfile '%s' not an absolute path\n",
+		    prog, lockfile);
+	    return 2;
+	}
+    } else {
 	char *makelist;
 
 	if ((makelist = getenv("MAKEFILE_LIST"))
