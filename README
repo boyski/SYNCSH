@@ -1,17 +1,17 @@
 Parallelism in software builds can be extremely valuable for
-speeding them up.  Unfortunately a side effect of parallelism is
-that the textual build logs may become scrambled as results are
-reported asynchronously.  This makes it hard - or even impossible -
-to debug build errors.
+cutting build time.  Unfortunately, a side effect of parallelism
+is that the textual build logs may become scrambled as results
+are reported asynchronously.  This can make it hard - or even
+impossible - to debug build errors.
 
-The "syncsh" program is a tiny shell wrapper which looks enough
-like a shell that make programs such as GNU make can specify it as
-their SHELL value, though in fact it just forks a "real" shell such
-as /bin/sh to do the actual work. Its value added, in return for
-that extra process, is that it holds onto the output of the real
-shell and coordinates with other running instances of itself before
-printing its results to stdout. The result is that the output of
-each make "recipe" is written atomically.
+The "syncsh" program is a tiny program which looks enough like
+a shell that make programs such as GNU make can specify it as
+their SHELL value, though in fact it just forks a "real" shell
+such as /bin/sh to do the actual work. Its value-added, in return
+for that extra process, is that it holds onto the output of the
+real shell and coordinates with other running instances of itself
+before printing those results to stdout. The result is that the
+output of each make "recipe" is written atomically.
 
 Thus syncsh can "re-synchronize" the output of asynchronous jobs.
 Note that no guarantee is made that jobs will report in the "right"

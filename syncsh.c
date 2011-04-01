@@ -1,3 +1,10 @@
+/*
+ * "syncsh" - See associated README for documentation.
+ * This is written to the POSIX API and should work
+ * on just about any Unix-like system.
+ * I know of no reason it couldn't be ported to Windows.
+ */
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
