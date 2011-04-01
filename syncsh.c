@@ -153,21 +153,21 @@ main(int argc, char *argv[])
 	    lockfd = teefd;
 	}
     } else if (!lockfile) {
-	char *makelist, *t;
+	char *makelist, *t1, *t2, *lf;
 
 	if ((makelist = getenv("MAKEFILE_LIST"))
-	    && (lockfile = strdup(makelist))) {
+	    && (t1 = strdup(makelist))
+	    && (lf = malloc(PATH_MAX + 1))) {
 
-	    while (isspace((int)*lockfile))
-		lockfile++;
-	    if ((t = strchr(lockfile, ' ')))
-		*t = '\0';
-	    if (!(t = malloc(PATH_MAX + 1)))
-		syserr(2, "malloc");
-	    if (!realpath(lockfile, t))
-		syserr(2, lockfile);
-	    free(lockfile);
-	    lockfile = t;
+	    makelist = t1;
+	    while (isspace((int)*t1))
+		t1++;
+	    if ((t2 = strchr(t1, ' ')))
+		*t2 = '\0';
+	    if (!realpath(t1, lf))
+		syserr(2, t1);
+	    lockfile = lf;
+	    free(makelist);
 	} else {
 	    fprintf(stderr, "%s: Error: no lockfile\n", prog);
 	    return 2;
@@ -183,13 +183,22 @@ main(int argc, char *argv[])
     verbose = getenv(PFX "VERBOSE") ? atoi(getenv(PFX "VERBOSE")) : 0;
 
     /*
-     * Note that we never write to the lockfile but must
-     * open it for write in order to acquire the lock.
+     * Note that we NEVER write to the lockfile but must open
+     * it for write in order for lockf() to acquire the lock.
      */
     if (lockfd == -1 && (lockfd = open(lockfile, O_WRONLY)) == -1)
 	syserr(2, lockfile);
 
+    /*
+     * Lockf() is preferred because it works over NFS but we can
+     * fall back to flock() if need be. As of some date Cygwin did
+     * not have lockf().
+     */
+#ifdef F_LOCK
     if (lockf(lockfd, F_LOCK, 0) == 0) {
+#else
+    if (flock(lockfd, LOCK_EX) == 0) {
+#endif
 	/*
 	 * This is the "critical section" during which the lock is held.
 	 * We want to keep it as short as possible.

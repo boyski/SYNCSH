@@ -22,7 +22,7 @@ $(major):
 	@for n in $(minor); do echo $@$$n; sleep 1 ; done
 
 .PHONY: install
-install: all
+install: all test-good
 	mv syncsh ${HOME}/${CPU}/bin
 
 .PHONY: clean
