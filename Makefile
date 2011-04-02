@@ -10,10 +10,10 @@ minor	:= 1 2 3 4
 .PHONY: test test-good test-bad
 test: test-bad test-good
 test-bad: syncsh
-	@echo "Below, letter groups will be scrambled :-("
+	@echo "These letter groups will be scrambled :-("
 	@$(MAKE) --no-print-directory -j$(words $(major)) par
 test-good: syncsh
-	@echo "Below, letter groups will stay together :-)"
+	@echo "These letter groups will stay together :-)"
 	@MAKEFILE_LIST= $(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j$(words $(major)) par
 
 .PHONY: par $(major)

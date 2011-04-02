@@ -93,7 +93,7 @@ main(int argc, char *argv[])
 
     prog = basename(argv[0]);
 
-    if (argc <= 1) {
+    if (argc <= 1 || !strcmp(argv[1], "-h") || strstr(argv[1], "help")) {
 	usage();
     }
 
