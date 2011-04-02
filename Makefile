@@ -27,4 +27,4 @@ install: all test-good
 
 .PHONY: clean
 clean:
-	rm -f syncsh *~ OUT
+	$(RM) -f syncsh *.exe *~ OUT
