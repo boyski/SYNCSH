@@ -67,6 +67,7 @@ usage(void)
     fprintf(stderr, "Usage: %s -<flags> <command>\n", prog);
     fprintf(stderr, "  " "where <flags> will typically be -c\n");
     fprintf(stderr, "Environment variables:\n");
+    fprintf(stderr, "  " PFX "INTERACTIVE: debugging mode\n");
     fprintf(stderr, "  " PFX "LOCKFILE: full path to a writable lock file\n");
     fprintf(stderr, "  " PFX "SHELL: path of the shell to hand off to\n");
     fprintf(stderr, "  " PFX "TEE: file to which output will be appended\n");
@@ -123,6 +124,26 @@ main(int argc, char *argv[])
 	syserr(2, "tmpfile");
     }
 
+    if (getenv(PFX "INTERACTIVE")) {
+	write(STDOUT_FILENO, "++ ", 3);
+	write(STDOUT_FILENO, recipe, strlen(recipe));
+	write(STDOUT_FILENO, "\n", 1);
+
+	child = fork();
+	if (child == (pid_t) 0) {
+	    putenv("PS1=>> ");
+	    execlp(shargv[0], shargv[0], "-i", (char *)0);
+	    perror(shargv[0]);
+	    exit(2);
+	} else if (child == (pid_t) - 1) {
+	    syserr(2, "fork");
+	}
+
+	waitpid(child, &status, 0);
+	if (status)
+	    return status >> 8;
+    }
+
     child = fork();
     if (child == (pid_t) 0) {
 	close(1);
@@ -137,6 +158,7 @@ main(int argc, char *argv[])
     }
 
     waitpid(child, &status, 0);
+
     fseek(tempfp, 0, SEEK_SET);
 
     lockfile = getenv(PFX "LOCKFILE");
