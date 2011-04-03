@@ -157,9 +157,6 @@ main(int argc, char *argv[])
 		    snprintf(nmflags, nlen, "MAKEFLAGS=s%s %s", mflags, oneshell);
 		}
 		putenv(nmflags);
-		fprintf(stderr, "MAKEFLAGS=[[%s]]\n", getenv("MAKEFLAGS"));
-		strcpy(nmflags, mflags);
-		strcat(nmflags, oneshell);
 	    }
 	    putenv("PS1=>> ");
 	    execlp(shargv[0], shargv[0], "-i", (char *)0);
