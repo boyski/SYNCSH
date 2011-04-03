@@ -64,14 +64,15 @@ dbg(const char *fmt, ...)
 static void
 usage(void)
 {
+    const char *fmt = "  %-16s %s\n";
     fprintf(stderr, "Usage: %s -<flags> <command>\n", prog);
     fprintf(stderr, "  " "where <flags> will typically be -c\n");
     fprintf(stderr, "Environment variables:\n");
-    fprintf(stderr, "  " PFX "INTERACTIVE: debugging mode\n");
-    fprintf(stderr, "  " PFX "LOCKFILE: full path to a writable lock file\n");
-    fprintf(stderr, "  " PFX "SHELL: path of the shell to hand off to\n");
-    fprintf(stderr, "  " PFX "TEE: file to which output will be appended\n");
-    fprintf(stderr, "  " PFX "VERBOSE: nonzero int for extra verbosity\n");
+    fprintf(stderr, fmt, PFX "INTERACTIVE:", "debugging mode");
+    fprintf(stderr, fmt, PFX "LOCKFILE:", "full path to a writable lock file");
+    fprintf(stderr, fmt, PFX "SHELL:", "path of shell to hand off to");
+    fprintf(stderr, fmt, PFX "TEE:", "file to which output will be appended");
+    fprintf(stderr, fmt, PFX "VERBOSE:", "nonzero int for extra verbosity");
     exit(1);
 }
 
