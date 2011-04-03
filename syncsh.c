@@ -124,13 +124,43 @@ main(int argc, char *argv[])
 	syserr(2, "tmpfile");
     }
 
-    if (getenv(PFX "INTERACTIVE")) {
+    if (getenv(PFX "INTERACTIVE") &&
+	isatty(fileno(stdin)) && isatty(fileno(stdout))) {
+
 	write(STDOUT_FILENO, "++ ", 3);
 	write(STDOUT_FILENO, recipe, strlen(recipe));
 	write(STDOUT_FILENO, "\n", 1);
 
 	child = fork();
 	if (child == (pid_t) 0) {
+	    char *mflags;
+	    char *nmflags;
+	    char *t;
+	    char *oneshell = "--eval=.ONESHELL:";
+	    size_t nlen;
+
+	    /*
+	     * In order for this to work reliably we need to ensure that
+	     * $(SHELL) is used for each recipe. With GNU make 3.82 or
+	     * above this can be done by forcing .ONESHELL mode. Assume
+	     * that in debug mode we're using 3.82. This should really
+	     * be "promoted" to all situations once 3.82 is ubiquitous.
+	     */
+	    if ((mflags = getenv("MAKEFLAGS"))) {
+		mflags = strdup(mflags);
+		nlen = strlen(mflags) + strlen(oneshell) + 10 + 1;
+		nmflags = malloc(nlen);
+		if ((t = strstr(mflags, " -- "))) {
+		    *++t = '\0';
+		    snprintf(nmflags, nlen, "MAKEFLAGS=s%s%s -- %s", mflags, oneshell, t + 3);
+		} else {
+		    snprintf(nmflags, nlen, "MAKEFLAGS=s%s %s", mflags, oneshell);
+		}
+		putenv(nmflags);
+		fprintf(stderr, "MAKEFLAGS=[[%s]]\n", getenv("MAKEFLAGS"));
+		strcpy(nmflags, mflags);
+		strcat(nmflags, oneshell);
+	    }
 	    putenv("PS1=>> ");
 	    execlp(shargv[0], shargv[0], "-i", (char *)0);
 	    perror(shargv[0]);

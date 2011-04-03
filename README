@@ -50,3 +50,8 @@ Syncsh can also be used without modifying any makefiles:
 
 There may be other useful SYNCSH_* environment variables; see the
 usage message or the source code. Run with no arguments for usage.
+
+In order for this to work reliably we must ensure that $(SHELL)
+is used for each recipe. With GNU make 3.82 or above this can be
+done by forcing .ONESHELL mode; in any other situation it may be
+necessary to fix the makefile(s).
