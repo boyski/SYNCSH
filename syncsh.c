@@ -248,5 +248,5 @@ main(int argc, char *argv[])
 	syserr(2, lockfile);
     }
 
-    return status;
+    return status >> 8;
 }
