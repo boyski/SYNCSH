@@ -12,10 +12,7 @@
  * layer. The former would require less coding but
  * would have more moving parts, the latter would mean
  * more conditionals here but might be more robust and
- * faster. Also, note that Win32 has a richer set of
- * It should be possible to modify this to synchronize
- * on a semaphore instead of a file, which would
- * improve simplicity of use somewhat.
+ * faster.
  */
 
 #include <ctype.h>
@@ -100,7 +97,6 @@ main(int argc, char *argv[])
     pid_t child;
     FILE *tempfp;
     char buffer[8192];
-    ssize_t bytesRead;
     char *sh;
     char *recipe;
     char *tee;
@@ -257,14 +253,20 @@ main(int argc, char *argv[])
 
     /*
      * Lockf() is preferred because it works over NFS but we can
-     * fall back to flock() if need be. As of some date Cygwin did
-     * not have lockf().
+     * fall back to flock() if need be. As of this date Cygwin does
+     * not have lockf(). An alternative would be to synchronize on
+     * a semaphore rather than a file but (a) file locking is older
+     * and more portable and (b) file locks go away on program exit
+     * whereas POSIX semaphores need to be released which causes
+     * fragility. A Windows port might prefer semaphores though.
      */
 #ifdef F_LOCK
     if (lockf(lockfd, F_LOCK, 0) == 0) {
 #else
     if (flock(lockfd, LOCK_EX) == 0) {
 #endif
+	ssize_t nread;
+
 	/*
 	 * This is the "critical section" during which the lock is held.
 	 * We want to keep it as short as possible.
@@ -282,15 +284,16 @@ main(int argc, char *argv[])
 		write(teefd, BAR2, sizeof(BAR2) - 1);
 	    }
 	}
-	while ((bytesRead = fread(buffer, 1, sizeof(buffer), tempfp)) > 0) {
-	    write(STDOUT_FILENO, buffer, bytesRead);
+	while ((nread = fread(buffer, 1, sizeof(buffer), tempfp)) > 0) {
+	    write(STDOUT_FILENO, buffer, nread);
 	    if (teefd > 0)
-		write(teefd, buffer, bytesRead);
+		write(teefd, buffer, nread);
 	}
-	fclose(tempfp);
     } else {
 	syserr(2, lockfile);
     }
+
+    fclose(tempfp);
 
     return status >> 8;
 }
