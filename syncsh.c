@@ -2,7 +2,19 @@
  * "syncsh" - See associated README for documentation.
  * This is written to the POSIX API and should work
  * on just about any Unix-like system.
- * I know of no reason it couldn't be ported to Windows.
+ * I know of no reason it couldn't be ported to Windows;
+ * it only needs to spawn a subprocess, directing its
+ * stdout and stderr into a temp file, and synchronize
+ * with other instances of itself. All these are easily
+ * doable with the Win32 API. The main question would be
+ * whether to rely on the Unix compatibility layer in the
+ * C runtime library or to code directly to the Win32
+ * layer. The former would require less coding but
+ * would have more moving parts, the latter would mean
+ * more conditionals here but might be more robust and
+ * faster. Also, note that Win32 has a richer set of
+ * locking APIs so it might make sense to synchronize
+ * with e.g. a semaphore instead of a file.
  */
 
 #include <ctype.h>
