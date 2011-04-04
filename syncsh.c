@@ -13,8 +13,9 @@
  * would have more moving parts, the latter would mean
  * more conditionals here but might be more robust and
  * faster. Also, note that Win32 has a richer set of
- * locking APIs so it might make sense to synchronize
- * with e.g. a semaphore instead of a file.
+ * It should be possible to modify this to synchronize
+ * on a semaphore instead of a file, which would
+ * improve simplicity of use somewhat.
  */
 
 #include <ctype.h>
