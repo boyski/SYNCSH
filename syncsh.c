@@ -77,6 +77,7 @@ static void
 usage(void)
 {
     const char *fmt = "  %-16s %s\n";
+
     fprintf(stderr, "Usage: %s -<flags> <command>\n", prog);
     fprintf(stderr, "  " "where <flags> will typically be -c\n");
     fprintf(stderr, "Environment variables:\n");
@@ -147,10 +148,6 @@ main(int argc, char *argv[])
 	child = fork();
 	if (child == (pid_t) 0) {
 	    char *mflags;
-	    char *nmflags;
-	    char *t;
-	    char *oneshell = "--eval=.ONESHELL:";
-	    size_t nlen;
 
 	    /*
 	     * In order for this to work reliably we need to ensure that
@@ -160,14 +157,20 @@ main(int argc, char *argv[])
 	     * be "promoted" to all situations once 3.82 is ubiquitous.
 	     */
 	    if ((mflags = getenv("MAKEFLAGS"))) {
+		char *nmflags;
+		char *t;
+		size_t len;
+		char *eval = "--eval=.ONESHELL:";
+
 		mflags = strdup(mflags);
-		nlen = strlen(mflags) + strlen(oneshell) + 10 + 1;
-		nmflags = malloc(nlen);
+		len = strlen(mflags) + strlen(eval) + 10 + 1;
+		nmflags = malloc(len);
 		if ((t = strstr(mflags, " -- "))) {
 		    *++t = '\0';
-		    snprintf(nmflags, nlen, "MAKEFLAGS=s%s%s -- %s", mflags, oneshell, t + 3);
+		    snprintf(nmflags, len, "MAKEFLAGS=s%s%s -- %s", mflags,
+			     eval, t + 3);
 		} else {
-		    snprintf(nmflags, nlen, "MAKEFLAGS=s%s %s", mflags, oneshell);
+		    snprintf(nmflags, len, "MAKEFLAGS=s%s %s", mflags, eval);
 		}
 		putenv(nmflags);
 	    }
