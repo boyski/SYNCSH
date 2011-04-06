@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ -f GNUmakefile ]; then
+    lockfile=$PWD/GNUmakefile
+elif [ -f makefile ]; then
+    lockfile=$PWD/makefile
+elif [ -f Makefile ]; then
+    lockfile=$PWD/Makefile
+else
+    lockfile=$0
+fi
+
+export SYNCSH_LOCKFILE=${SYNCSH_LOCKFILE:-$lockfile}
+#export SYNCSH_SHELL=${SYNCSH_SHELL:-/bin/bash}
+export MAKE="gmake"
+syncsh=`which syncsh`
+exec ${MAKE} SHELL=$syncsh "$@"
