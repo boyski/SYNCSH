@@ -10,8 +10,8 @@ else
     lockfile=$0
 fi
 
-export SYNCSH_LOCKFILE=${SYNCSH_LOCKFILE:-$lockfile}
-#export SYNCSH_SHELL=${SYNCSH_SHELL:-/bin/bash}
-export MAKE="gmake"
+SYNCSH_LOCKFILE=${SYNCSH_LOCKFILE:-$lockfile}; export SYNCSH_LOCKFILE
+#SYNCSH_SHELL=${SYNCSH_SHELL:-/bin/bash}; export SYNCSH_SHELL
+MAKE="gmake"; export MAKE
 syncsh=`which syncsh`
 exec ${MAKE} SHELL=$syncsh "$@"
