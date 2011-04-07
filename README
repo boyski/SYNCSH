@@ -13,7 +13,13 @@ real shell and coordinates with other running instances of itself
 before printing those results to stdout. The result is that the
 output of each make "recipe" is written atomically.
 
-Thus syncsh can "re-synchronize" the output of asynchronous jobs.
+It's important to understand that syncsh does not hold the lock for
+all the time its job is running; that would force jobs to run
+serially and make the parallel build a no-op. Instead, each job is
+allowed to run freely and the lock is only grabbed for as long as
+required to write its output.
+
+Thus syncsh will "re-synchronize" the output of asynchronous jobs.
 Note that no guarantee is made that jobs will report in the "right"
 order (since in parallel processing there is no right order), only
 that the order will be sensible and that the results of different
@@ -28,7 +34,7 @@ program will run its commands by calling the shell like this
 
     /bin/sh -c "command"
 
-Which is the only usage pattern synch currently understands. It
+Which is the only usage pattern syncsh currently understands. It
 _should_ work with any parallel build program which uses this
 pattern.
 
