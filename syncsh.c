@@ -79,7 +79,7 @@ usage(void)
     fprintf(stderr, "Usage: %s -<flags> <command>\n", prog);
     fprintf(stderr, "  " "where <flags> will typically be -c\n");
     fprintf(stderr, "Environment variables:\n");
-    fprintf(stderr, fmt, PFX "INTERACTIVE:", "debugging mode");
+    fprintf(stderr, fmt, PFX "HEADLINE:", "string to print before output");
     fprintf(stderr, fmt, PFX "LOCKFILE:", "full path to a writable lock file");
     fprintf(stderr, fmt, PFX "SHELL:", "path of shell to hand off to");
     fprintf(stderr, fmt, PFX "TEE:", "file to which output will be appended");
@@ -266,17 +266,26 @@ main(int argc, char *argv[])
     if (flock(lockfd, LOCK_EX) == 0) {
 #endif
 	ssize_t nread;
+	char *headline;
 
 	/*
 	 * This is the "critical section" during which the lock is held.
 	 * We want to keep it as short as possible.
 	 */
+	if ((headline = getenv(PFX "HEADLINE"))) {
+	    write(STDOUT_FILENO, headline, strlen(headline));
+	    write(STDOUT_FILENO, "\n", 1);
+	}
 	if (verbose) {
 	    write(STDOUT_FILENO, recipe, strlen(recipe));
 	    write(STDOUT_FILENO, "\n", 1);
 	}
 	if (teefd > 0) {
 	    lseek(teefd, 0, SEEK_END);
+	    if (headline) {
+		write(teefd, headline, strlen(headline));
+		write(teefd, "\n", 1);
+	    }
 	    if (verbose) {
 		write(teefd, BAR1, sizeof(BAR1) - 1);
 		write(teefd, recipe, strlen(recipe));
