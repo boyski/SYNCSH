@@ -69,9 +69,14 @@ by adding shell metacharacters like ; or &&. E.g. this:
 	rm -f $@
 	cp $< $@
 
-would result either in two shell invocations or none, but
+would result in two shell invocations (or none, if we hadn't
+overridden SHELL) but
 
 	rm -f $@ &&\
 	cp $< $@
 
-would guarantee a single shell and is better practice anyway.
+will guarantee a single shell and is better practice anyway. Note
+that GNU make will normally avoid using an intermediate shell at
+all when possible but this behavior is suppressed when SHELL is
+assigned to. Thus setting SHELL=<syncsh> guarantees syncsh will be
+used for every recipe.
