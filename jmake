@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+use Cwd qw(realpath);
 use File::Basename;
 use File::Glob qw(:glob);
 use Getopt::Long qw(:config pass_through no_ignore_case);
@@ -9,10 +10,11 @@ GetOptions(\%opt, 'Verbose:s');
 $ENV{SYNCSH_VERBOSE} ||= $opt{Verbose} || '' if exists($opt{Verbose});
 
 unshift(@ARGV, '-s') if exists($ENV{SYNCSH_VERBOSE});
-$ENV{SYNCSH_LOCKFILE} ||= (grep -w, bsd_glob("*akefile"))[0]
+$ENV{SYNCSH_LOCKFILE} ||= realpath((grep -w, bsd_glob("*akefile"))[0]
 			|| (grep -w, bsd_glob("*"))[0]
-			|| (grep -w, bsd_glob("$ENV{HOME}/*"))[0];
+			|| (grep -w, bsd_glob("$ENV{HOME}/*"))[0]);
 $ENV{MAKE} ||= 'gmake';
 #$ENV{SYNCSH_SHELL} ||= '/bin/bash';
 my $syncsh = sprintf "SHELL=%s/syncsh", dirname($0);
+#printf STDERR "+ %s $syncsh @ARGV\n", $ENV{MAKE};
 exit(2) if system($ENV{MAKE}, $syncsh, @ARGV);

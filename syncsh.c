@@ -31,8 +31,6 @@
 #include <sys/wait.h>
 
 #define PFX	"SYNCSH_"
-#define BAR1	"------------------------------------------------------\n"
-#define BAR2	"======================================================\n"
 
 #define is_absolute(path)		(*path == '/')
 
@@ -83,7 +81,7 @@ usage(void)
     fprintf(stderr, fmt, PFX "LOCKFILE:", "full path to a writable lock file");
     fprintf(stderr, fmt, PFX "SHELL:", "path of shell to hand off to");
     fprintf(stderr, fmt, PFX "TEE:", "file to which output will be appended");
-    fprintf(stderr, fmt, PFX "VERBOSE:", "nonzero int for extra verbosity");
+    fprintf(stderr, fmt, PFX "VERBOSE:", "print recipe with this prefix");
     exit(1);
 }
 
@@ -93,7 +91,6 @@ main(int argc, char *argv[])
     int status = 0;
     int teefd = -1;
     int lockfd = -1;
-    int verbose = 0;
     pid_t child;
     FILE *tempfp;
     char buffer[8192];
@@ -101,6 +98,7 @@ main(int argc, char *argv[])
     char *recipe;
     char *tee;
     char *lockfile;
+    char *verbose = NULL;
     char *shargv[4];
 
     prog = basename(argv[0]);
@@ -184,12 +182,27 @@ main(int argc, char *argv[])
 	    return status >> 8;
     }
 
+    /*
+     * There's a bug here; verbosity breaks things like "FOO := $(shell uname -m)"
+     * because FOO will end up containing the command name ("uname -m") as well as
+     * its output. The MAKELEVEL hack is a partial fix; it helps only in the top-
+     * level makefile.
+     */
+    if (getenv("MAKELEVEL"))
+	verbose = getenv(PFX "VERBOSE");
+
     child = fork();
     if (child == (pid_t) 0) {
 	close(1);
 	dup2(fileno(tempfp), 1);
 	close(2);
 	dup2(fileno(tempfp), 2);
+	if (verbose) {
+	    if (*verbose)
+		write(STDERR_FILENO, verbose, strlen(verbose));
+	    write(STDERR_FILENO, recipe, strlen(recipe));
+	    write(STDERR_FILENO, "\n", 1);
+	}
 	execvp(shargv[0], shargv);
 	perror(shargv[0]);
 	exit(2);
@@ -242,8 +255,6 @@ main(int argc, char *argv[])
 	return 2;
     }
 
-    verbose = getenv(PFX "VERBOSE") ? atoi(getenv(PFX "VERBOSE")) : 0;
-
     /*
      * Note that we NEVER write to the lockfile but must open
      * it for write in order for lockf() to acquire the lock.
@@ -276,21 +287,11 @@ main(int argc, char *argv[])
 	    write(STDOUT_FILENO, headline, strlen(headline));
 	    write(STDOUT_FILENO, "\n", 1);
 	}
-	if (verbose) {
-	    write(STDOUT_FILENO, recipe, strlen(recipe));
-	    write(STDOUT_FILENO, "\n", 1);
-	}
 	if (teefd > 0) {
 	    lseek(teefd, 0, SEEK_END);
 	    if (headline) {
 		write(teefd, headline, strlen(headline));
 		write(teefd, "\n", 1);
-	    }
-	    if (verbose) {
-		write(teefd, BAR1, sizeof(BAR1) - 1);
-		write(teefd, recipe, strlen(recipe));
-		write(teefd, "\n", 1);
-		write(teefd, BAR2, sizeof(BAR2) - 1);
 	    }
 	}
 	while ((nread = fread(buffer, 1, sizeof(buffer), tempfp)) > 0) {
