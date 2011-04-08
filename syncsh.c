@@ -172,7 +172,7 @@ main(int argc, char *argv[])
 	    putenv("PS1=>> ");
 	    execlp(shargv[0], shargv[0], "-i", (char *)0);
 	    perror(shargv[0]);
-	    exit(2);
+	    exit(EXIT_FAILURE);
 	} else if (child == (pid_t) - 1) {
 	    syserr(2, "fork");
 	}
@@ -193,10 +193,13 @@ main(int argc, char *argv[])
 
     child = fork();
     if (child == (pid_t) 0) {
-	close(1);
-	dup2(fileno(tempfp), 1);
-	close(2);
-	dup2(fileno(tempfp), 2);
+	close(STDOUT_FILENO);
+	dup2(fileno(tempfp), STDOUT_FILENO);
+	if (!getenv(PFX "STDERR_SEPARATE")) {
+	    // Undocumented: may be changed.
+	    close(STDERR_FILENO);
+	    dup2(fileno(tempfp), STDERR_FILENO);
+	}
 	if (verbose) {
 	    if (*verbose)
 		write(STDERR_FILENO, verbose, strlen(verbose));
@@ -205,7 +208,7 @@ main(int argc, char *argv[])
 	}
 	execvp(shargv[0], shargv);
 	perror(shargv[0]);
-	exit(2);
+	exit(EXIT_FAILURE);
     } else if (child == (pid_t) - 1) {
 	syserr(2, "fork");
     }
