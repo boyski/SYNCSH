@@ -1,17 +1,18 @@
-#!/bin/sh
+#!/usr/bin/perl
 
-if [ -f GNUmakefile ]; then
-    lockfile=$PWD/GNUmakefile
-elif [ -f makefile ]; then
-    lockfile=$PWD/makefile
-elif [ -f Makefile ]; then
-    lockfile=$PWD/Makefile
-else
-    lockfile=$0
-fi
+use File::Basename;
+use File::Glob qw(:glob);
+use Getopt::Long qw(:config pass_through no_ignore_case);
 
-SYNCSH_LOCKFILE=${SYNCSH_LOCKFILE:-$lockfile}; export SYNCSH_LOCKFILE
-#SYNCSH_SHELL=${SYNCSH_SHELL:-/bin/bash}; export SYNCSH_SHELL
-MAKE="gmake"; export MAKE
-syncsh=`which syncsh`
-exec ${MAKE} SHELL=$syncsh "$@"
+my %opt;
+GetOptions(\%opt, 'Verbose:s');
+$ENV{SYNCSH_VERBOSE} ||= $opt{Verbose} || '' if exists($opt{Verbose});
+
+unshift(@ARGV, '-s') if exists($ENV{SYNCSH_VERBOSE});
+$ENV{SYNCSH_LOCKFILE} ||= (grep -w, bsd_glob("*akefile"))[0]
+			|| (grep -w, bsd_glob("*"))[0]
+			|| (grep -w, bsd_glob("$ENV{HOME}/*"))[0];
+$ENV{MAKE} ||= 'gmake';
+#$ENV{SYNCSH_SHELL} ||= '/bin/bash';
+my $syncsh = sprintf "SHELL=%s/syncsh", dirname($0);
+exit(2) if system($ENV{MAKE}, $syncsh, @ARGV);
