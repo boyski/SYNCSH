@@ -1,20 +1,30 @@
 #!/usr/bin/perl
 
+# Demo/convenience wrapper for syncsh. All it does is set
+# a couple of env vars and then exec "make SHELL=syncsh ...".
+
 use Cwd qw(realpath);
 use File::Basename;
 use File::Glob qw(:glob);
 use Getopt::Long qw(:config pass_through no_ignore_case);
 
+# Parse out a special flag (-V) unused by GNU make, which 
+# specifies verbose mode (basically overriding the @ prefix).
 my %opt;
 GetOptions(\%opt, 'Verbose:s');
 $ENV{SYNCSH_VERBOSE} ||= $opt{Verbose} || '' if exists($opt{Verbose});
-
 unshift(@ARGV, '-s') if exists($ENV{SYNCSH_VERBOSE});
+
+# Find a writable file to serve as the lockfile. Prefer to use
+# something in the cwd but fall back to anything in ~ (which is
+# less ideal because of potential contention with other builds).
 $ENV{SYNCSH_LOCKFILE} ||= realpath((grep -w, bsd_glob("*akefile"))[0]
 			|| (grep -w, bsd_glob("*"))[0]
 			|| (grep -w, bsd_glob("$ENV{HOME}/*"))[0]);
-$ENV{MAKE} ||= 'gmake';
-#$ENV{SYNCSH_SHELL} ||= '/bin/bash';
+
+my $make = 'gmake';
 my $syncsh = sprintf "SHELL=%s/syncsh", dirname($0);
-#printf STDERR "+ %s $syncsh @ARGV\n", $ENV{MAKE};
-exit(2) if system($ENV{MAKE}, $syncsh, @ARGV);
+#$ENV{MAKE} ||= $make;
+#$ENV{SYNCSH_SHELL} ||= '/bin/bash';
+#printf STDERR "+ %s $syncsh @ARGV\n", $make;
+exit(2) if system($make, $syncsh, @ARGV);
