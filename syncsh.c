@@ -112,14 +112,18 @@ main(int argc, char *argv[])
 	sh = "/bin/sh";
 
     /*
-     * Here it looks like the shell is being used in a non-standard way
-     * by the makefile itself. E.g. the makefile may contain a literal
-     * "$(SHELL) script ..." in a recipe or in some function.
-     * In this case we don't have to worry about synchronization
-     * because we're not in charge of a recipe.
+     * Here it looks like the shell is not being used to run a recipe.y
+     * E.g. the makefile may contain a literal "$(SHELL) foobar.sh ..."
+     * within a recipe or in some function such as $(shell foobar.sh).
+     * Since we're not running a recipe we don't need to worry about
+     * synchronizing with other recipes.
+     * Special case of the above: if MAKELEVEL is not present at all,
+     * that means we're (a) in a top-level (non-recursive) make process
+     * and (b) we're not running a recipe, since MAKELEVEL is incremented
+     * and exported for each recipe.
      */
     if (argc != 3 || argv[1][0] != '-' || !strchr(argv[1], 'c')
-	|| argv[2][0] == '-') {
+	|| argv[2][0] == '-' || !getenv("MAKELEVEL")) {
 	argv[0] = sh;
 	execvp(argv[0], argv);
 	syserr(2, argv[0]);
@@ -130,7 +134,7 @@ main(int argc, char *argv[])
     shargv[2] = recipe = argv[2];
     shargv[3] = NULL;
 
-    if (!((tempout = tmpfile()) && (temperr = tmpfile()))) {
+    if (!(tempout = tmpfile()) || !(temperr = tmpfile())) {
 	syserr(2, "tmpfile");
     }
 
