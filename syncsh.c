@@ -187,9 +187,11 @@ main(int argc, char *argv[])
 
     child = fork();
     if (child == (pid_t) 0) {
-	if (close(STDOUT_FILENO) == -1 || dup2(fileno(tempout), STDOUT_FILENO) == -1)
+	if (close(STDOUT_FILENO) == -1
+	    || dup2(fileno(tempout), STDOUT_FILENO) == -1)
 	    syserr(2, "dup2");
-	if (close(STDERR_FILENO) == -1 || dup2(fileno(temperr), STDERR_FILENO) == -1)
+	if (close(STDERR_FILENO) == -1
+	    || dup2(fileno(temperr), STDERR_FILENO) == -1)
 	    syserr(2, "dup2");
 	if (verbose) {
 	    if (*verbose)
