@@ -92,7 +92,8 @@ main(int argc, char *argv[])
     int teefd = -1;
     int lockfd = -1;
     pid_t child;
-    FILE *tempfp;
+    FILE *tempout;
+    FILE *temperr;
     char buffer[8192];
     char *sh;
     char *recipe;
@@ -129,7 +130,7 @@ main(int argc, char *argv[])
     shargv[2] = recipe = argv[2];
     shargv[3] = NULL;
 
-    if ((tempfp = tmpfile()) == NULL) {
+    if (!((tempout = tmpfile()) && (temperr = tmpfile()))) {
 	syserr(2, "tmpfile");
     }
 
@@ -182,24 +183,14 @@ main(int argc, char *argv[])
 	    return status >> 8;
     }
 
-    /*
-     * There's a bug here; verbosity breaks things like "FOO := $(shell uname -m)"
-     * because FOO will end up containing the command name ("uname -m") as well as
-     * its output. The MAKELEVEL hack is a partial fix; it helps only in the top-
-     * level makefile.
-     */
-    if (getenv("MAKELEVEL"))
-	verbose = getenv(PFX "VERBOSE");
+    verbose = getenv(PFX "VERBOSE");
 
     child = fork();
     if (child == (pid_t) 0) {
-	close(STDOUT_FILENO);
-	dup2(fileno(tempfp), STDOUT_FILENO);
-	if (!getenv(PFX "STDERR_SEPARATE")) {
-	    // Undocumented: may be changed.
-	    close(STDERR_FILENO);
-	    dup2(fileno(tempfp), STDERR_FILENO);
-	}
+	if (close(STDOUT_FILENO) == -1 || dup2(fileno(tempout), STDOUT_FILENO) == -1)
+	    syserr(2, "dup2");
+	if (close(STDERR_FILENO) == -1 || dup2(fileno(temperr), STDERR_FILENO) == -1)
+	    syserr(2, "dup2");
 	if (verbose) {
 	    if (*verbose)
 		write(STDERR_FILENO, verbose, strlen(verbose));
@@ -215,7 +206,9 @@ main(int argc, char *argv[])
 
     waitpid(child, &status, 0);
 
-    fseek(tempfp, 0, SEEK_SET);
+    /* unnecessary? */
+    (void)fseek(tempout, 0, SEEK_SET);
+    (void)fseek(temperr, 0, SEEK_SET);
 
     lockfile = getenv(PFX "LOCKFILE");
 
@@ -283,7 +276,7 @@ main(int argc, char *argv[])
 	char *headline;
 
 	/*
-	 * This is the "critical section" during which the lock is held.
+	 * Now in the "critical section" during which the lock is held.
 	 * We want to keep it as short as possible.
 	 */
 	if ((headline = getenv(PFX "HEADLINE"))) {
@@ -297,8 +290,13 @@ main(int argc, char *argv[])
 		write(teefd, "\n", 1);
 	    }
 	}
-	while ((nread = fread(buffer, 1, sizeof(buffer), tempfp)) > 0) {
+	while ((nread = fread(buffer, 1, sizeof(buffer), tempout)) > 0) {
 	    write(STDOUT_FILENO, buffer, nread);
+	    if (teefd > 0)
+		write(teefd, buffer, nread);
+	}
+	while ((nread = fread(buffer, 1, sizeof(buffer), temperr)) > 0) {
+	    write(STDERR_FILENO, buffer, nread);
 	    if (teefd > 0)
 		write(teefd, buffer, nread);
 	}
@@ -306,7 +304,8 @@ main(int argc, char *argv[])
 	syserr(2, lockfile);
     }
 
-    fclose(tempfp);
+    fclose(tempout);
+    fclose(temperr);
 
     return status >> 8;
 }
