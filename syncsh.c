@@ -138,55 +138,6 @@ main(int argc, char *argv[])
 	syserr(2, "tmpfile");
     }
 
-    if (getenv(PFX "INTERACTIVE") &&
-	isatty(fileno(stdin)) && isatty(fileno(stdout))) {
-
-	write(STDOUT_FILENO, "++ ", 3);
-	write(STDOUT_FILENO, recipe, strlen(recipe));
-	write(STDOUT_FILENO, "\n", 1);
-
-	child = fork();
-	if (child == (pid_t) 0) {
-	    char *mflags;
-
-	    /*
-	     * In order for this to work reliably we need to ensure that
-	     * $(SHELL) is used for each recipe. With GNU make 3.82 or
-	     * above this can be done by forcing .ONESHELL mode. Assume
-	     * that in debug mode we're using 3.82. This should really
-	     * be "promoted" to all situations once 3.82 is ubiquitous.
-	     */
-	    if ((mflags = getenv("MAKEFLAGS"))) {
-		char *nmflags;
-		char *t;
-		size_t len;
-		char *eval = "--eval=.ONESHELL:";
-
-		mflags = strdup(mflags);
-		len = strlen(mflags) + strlen(eval) + 10 + 1;
-		nmflags = malloc(len);
-		if ((t = strstr(mflags, " -- "))) {
-		    *++t = '\0';
-		    snprintf(nmflags, len, "MAKEFLAGS=s%s%s -- %s", mflags,
-			     eval, t + 3);
-		} else {
-		    snprintf(nmflags, len, "MAKEFLAGS=s%s %s", mflags, eval);
-		}
-		putenv(nmflags);
-	    }
-	    putenv("PS1=>> ");
-	    execlp(shargv[0], shargv[0], "-i", (char *)0);
-	    perror(shargv[0]);
-	    exit(EXIT_FAILURE);
-	} else if (child == (pid_t) - 1) {
-	    syserr(2, "fork");
-	}
-
-	waitpid(child, &status, 0);
-	if (status)
-	    return status >> 8;
-    }
-
     verbose = getenv(PFX "VERBOSE");
 
     child = fork();
