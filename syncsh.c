@@ -86,18 +86,14 @@ usage(void)
 }
 
 static void
-vb(const char *prefix, ...)
+vb(const char *prefix, char **argv)
 {
-    va_list ap;
-    char *arg;
-
-    va_start(ap, prefix);
     if (*prefix)
 	write(STDERR_FILENO, prefix, strlen(prefix));
-    while ((arg = va_arg(ap, char *)))
-	write(STDERR_FILENO, arg, strlen(arg));
-    write(STDERR_FILENO, "\n", 1);
-    va_end(ap);
+    for (; *argv; argv++) {
+	write(STDERR_FILENO, *argv, strlen(*argv));
+	write(STDERR_FILENO, *(argv + 1) ? " " : "\n", 1);
+    }
 }
 
 int
@@ -143,7 +139,7 @@ main(int argc, char *argv[])
 	|| argv[2][0] == '-' || !getenv("MAKELEVEL")) {
 	argv[0] = sh;
 	if (verbose)
-	    vb(verbose, recipe);
+	    vb(verbose, argv);
 	execvp(argv[0], argv);
 	syserr(2, argv[0]);
     }
@@ -166,7 +162,7 @@ main(int argc, char *argv[])
 	    || dup2(fileno(temperr), STDERR_FILENO) == -1)
 	    syserr(2, "dup2");
 	if (verbose)
-	    vb(verbose, recipe);
+	    vb(verbose, shargv + 2);
 	execvp(shargv[0], shargv);
 	perror(shargv[0]);
 	exit(EXIT_FAILURE);
