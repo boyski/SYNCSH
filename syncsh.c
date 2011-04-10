@@ -85,6 +85,21 @@ usage(void)
     exit(1);
 }
 
+static void
+vb(const char *prefix, ...)
+{
+    va_list ap;
+    char *arg;
+
+    va_start(ap, prefix);
+    if (*prefix)
+	write(STDERR_FILENO, prefix, strlen(prefix));
+    while ((arg = va_arg(ap, char *)))
+	write(STDERR_FILENO, arg, strlen(arg));
+    write(STDERR_FILENO, "\n", 1);
+    va_end(ap);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -108,6 +123,8 @@ main(int argc, char *argv[])
 	usage();
     }
 
+    verbose = getenv(PFX "VERBOSE");
+
     if (!(sh = getenv(PFX "SHELL")))
 	sh = "/bin/sh";
 
@@ -125,6 +142,8 @@ main(int argc, char *argv[])
     if (argc != 3 || argv[1][0] != '-' || !strchr(argv[1], 'c')
 	|| argv[2][0] == '-' || !getenv("MAKELEVEL")) {
 	argv[0] = sh;
+	if (verbose)
+	    vb(verbose, recipe);
 	execvp(argv[0], argv);
 	syserr(2, argv[0]);
     }
@@ -138,8 +157,6 @@ main(int argc, char *argv[])
 	syserr(2, "tmpfile");
     }
 
-    verbose = getenv(PFX "VERBOSE");
-
     child = fork();
     if (child == (pid_t) 0) {
 	if (close(STDOUT_FILENO) == -1
@@ -148,12 +165,8 @@ main(int argc, char *argv[])
 	if (close(STDERR_FILENO) == -1
 	    || dup2(fileno(temperr), STDERR_FILENO) == -1)
 	    syserr(2, "dup2");
-	if (verbose) {
-	    if (*verbose)
-		write(STDERR_FILENO, verbose, strlen(verbose));
-	    write(STDERR_FILENO, recipe, strlen(recipe));
-	    write(STDERR_FILENO, "\n", 1);
-	}
+	if (verbose)
+	    vb(verbose, recipe);
 	execvp(shargv[0], shargv);
 	perror(shargv[0]);
 	exit(EXIT_FAILURE);
