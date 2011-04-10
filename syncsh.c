@@ -192,6 +192,10 @@ main(int argc, char *argv[])
     } else if (!lockfile) {
 	char *makelist, *t1, *t2, *lf;
 
+	/*
+	 * If MAKEFILE_LIST was exported we can get the makefile
+	 * name from it.
+	 */
 	if ((makelist = getenv("MAKEFILE_LIST"))
 	    && (t1 = strdup(makelist))
 	    && (lf = malloc(PATH_MAX + 1))) {

@@ -40,17 +40,18 @@ pattern.
 
 IMPORTANT: syncsh needs a file to use for synchronization
 purposes.  This file must be writeable, although syncsh will NOT
-write to it (this is a requirement of the locking API in use). A
+actually write to it (this is a requirement of the lockf() API).  A
 good candidate would be the top-level Makefile. Thus, for example,
-you could use syncsh by adding the following lines to a GNU
+you could enable syncsh by adding the following lines to a GNU
 makefile:
 
-SHELL		= /full/path/to/syncsh
-SYNCSH_LOCKFILE	= $(CURDIR)/Makefile
-SYNCSH_SHELL	= /bin/bash
+SHELL		:= /full/path/to/syncsh
+SYNCSH_LOCKFILE	:= $(CURDIR)/Makefile
+SYNCSH_SHELL	:= /bin/bash
 
-Note that this example also specifies a shell to hand off to.
-Syncsh can also be used without modifying any makefiles:
+Note that this example also specifies the shell to hand off to
+(default is /bin/sh of course). Syncsh can also be used without
+modifying makefiles at all:
 
 % SYNCSH_LOCKFILE=`pwd`/Makefile gmake SHELL=/full/path/to/syncsh -j12 ...
 
@@ -62,7 +63,7 @@ this can be bound up in a wrapper.
 
 In order for syncsh to work reliably we must ensure that each
 recipe is passed to a single instance of $(SHELL). With GNU make
-3.82 or above this can be ensured by setting .ONESHELL mode but
+3.82 or above this can be done by setting .ONESHELL mode but
 in any other situation it may be necessary to fix the makefile(s)
 by adding shell metacharacters like ; or &&. E.g. this:
 
@@ -78,5 +79,5 @@ overridden SHELL) but
 will guarantee a single shell and is better practice anyway. Note
 that GNU make will normally avoid using an intermediate shell at
 all when possible but this behavior is suppressed when SHELL is
-assigned to. Thus setting SHELL=<syncsh> guarantees syncsh will be
-used for every recipe.
+assigned to. Thus by setting SHELL=<syncsh> we guarantee syncsh
+will be used for every recipe.
