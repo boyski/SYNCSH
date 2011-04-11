@@ -114,6 +114,7 @@ main(int argc, char *argv[])
     char *shargv[4];
     ssize_t nread;
     char *headline;
+    struct flock fl;
 
     prog = basename(argv[0]);
 
@@ -231,22 +232,27 @@ main(int argc, char *argv[])
 
     /*
      * Note that we NEVER write to the syncfile but must open
-     * it for write in order for lockf() to acquire the lock.
+     * it for write in order for fcntl() to acquire the lock.
      */
     if (syncfd == -1 && (syncfd = open(syncfile, O_WRONLY | O_APPEND)) == -1)
 	syserr(0, syncfile);
 
     /*
-     * Lockf() is preferred because it works over NFS but we can
-     * fall back to flock() if need be. As of this date Cygwin does
-     * not have lockf(). An alternative would be to synchronize on
+     * fcntl locks are preferred but we can fall back to flock()
+     * if need be.  An alternative would be to synchronize on
      * a semaphore rather than a file but (a) file locking is older
      * and more portable and (b) file locks go away on program exit
      * whereas POSIX semaphores need to be released which causes
      * fragility. A Windows port might prefer semaphores though.
      */
+
+
 #ifdef F_LOCK
-    if (lockf(syncfd, F_LOCK, 0))
+    memset(&fl, 0, sizeof(fl));
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_pid = getpid();
+    if (fcntl(syncfd, F_SETLKW, &fl) == -1)
 	syserr(0, syncfile);
 #else
     if (flock(syncfd, LOCK_EX))
@@ -282,6 +288,17 @@ main(int argc, char *argv[])
 	if (teefd > 0)
 	    write(teefd, buffer, nread);
     }
+
+    /* Exit the critical section */
+#ifdef F_LOCK
+    fl.l_type = F_UNLCK;
+    if (fcntl(syncfd, F_SETLKW, &fl) == -1)
+	syserr(0, syncfile);
+#else
+    if (flock(syncfd, LOCK_UN))
+	syserr(0, syncfile);
+#endif
+    close(syncfd);
 
     (void)fclose(tempout);
     (void)fclose(temperr);
