@@ -15,10 +15,10 @@ GetOptions(\%opt, 'Verbose:s');
 $ENV{SYNCSH_VERBOSE} ||= $opt{Verbose} || '' if exists($opt{Verbose});
 unshift(@ARGV, '-s') if exists($ENV{SYNCSH_VERBOSE});
 
-# Find a writable file to serve as the lockfile. Prefer to use
+# Find a writable file to serve as the syncfile. Prefer to use
 # something in the cwd but fall back to anything in ~ (which is
 # less ideal because of potential contention with other builds).
-$ENV{SYNCSH_LOCKFILE} ||= realpath((grep -w, bsd_glob("*akefile"))[0]
+$ENV{SYNCSH_SYNCFILE} ||= realpath((grep -w, bsd_glob("*akefile"))[0]
 			|| (grep -w, bsd_glob("*"))[0]
 			|| (grep -w, bsd_glob("$ENV{HOME}/*"))[0]);
 

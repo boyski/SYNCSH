@@ -78,21 +78,21 @@ usage(void)
     fprintf(stderr, "  " "where <flags> will typically be -c\n");
     fprintf(stderr, "Environment variables:\n");
     fprintf(stderr, fmt, PFX "HEADLINE:", "string to print before output");
-    fprintf(stderr, fmt, PFX "LOCKFILE:", "full path to a writable lock file");
     fprintf(stderr, fmt, PFX "SHELL:", "path of shell to hand off to");
+    fprintf(stderr, fmt, PFX "SYNCFILE:", "full path to a writable lock file");
     fprintf(stderr, fmt, PFX "TEE:", "file to which output will be appended");
     fprintf(stderr, fmt, PFX "VERBOSE:", "print recipe with this prefix");
     exit(1);
 }
 
 static void
-vb(const char *prefix, char **argv)
+vb(int fd, const char *prefix, char **argv)
 {
     if (*prefix)
-	write(STDERR_FILENO, prefix, strlen(prefix));
+	write(fd, prefix, strlen(prefix));
     for (; *argv; argv++) {
-	write(STDERR_FILENO, *argv, strlen(*argv));
-	write(STDERR_FILENO, *(argv + 1) ? " " : "\n", 1);
+	write(fd, *argv, strlen(*argv));
+	write(fd, *(argv + 1) ? " " : "\n", 1);
     }
 }
 
@@ -101,7 +101,7 @@ main(int argc, char *argv[])
 {
     int status = 0;
     int teefd = -1;
-    int lockfd = -1;
+    int syncfd = -1;
     pid_t child;
     FILE *tempout;
     FILE *temperr;
@@ -109,9 +109,11 @@ main(int argc, char *argv[])
     char *sh;
     char *recipe;
     char *tee;
-    char *lockfile;
+    char *syncfile;
     char *verbose = NULL;
     char *shargv[4];
+    ssize_t nread;
+    char *headline;
 
     prog = basename(argv[0]);
 
@@ -138,8 +140,10 @@ main(int argc, char *argv[])
     if (argc != 3 || argv[1][0] != '-' || !strchr(argv[1], 'c')
 	|| argv[2][0] == '-' || !getenv("MAKELEVEL")) {
 	argv[0] = sh;
-	if (verbose)
-	    vb(verbose, argv);
+	if (verbose) {
+	    fflush(stderr);
+	    vb(fileno(stderr), verbose, argv);
+	}
 	execvp(argv[0], argv);
 	syserr(2, argv[0]);
     }
@@ -153,16 +157,20 @@ main(int argc, char *argv[])
 	syserr(2, "tmpfile");
     }
 
-    child = fork();
+    if (verbose)
+	vb(fileno(temperr), verbose, shargv + 2);
+
+    /* GNU make uses vfork so we do too */
+    child = vfork();
     if (child == (pid_t) 0) {
-	if (close(STDOUT_FILENO) == -1
-	    || dup2(fileno(tempout), STDOUT_FILENO) == -1)
+	int outfd = fileno(stdout);
+	int errfd = fileno(stderr);
+
+	if ((close(outfd) == -1)
+	    || (dup2(fileno(tempout), outfd) == -1)
+	    || (close(errfd) == -1)
+	    || (dup2(fileno(temperr), errfd) == -1))
 	    syserr(2, "dup2");
-	if (close(STDERR_FILENO) == -1
-	    || dup2(fileno(temperr), STDERR_FILENO) == -1)
-	    syserr(2, "dup2");
-	if (verbose)
-	    vb(verbose, shargv + 2);
 	execvp(shargv[0], shargv);
 	perror(shargv[0]);
 	exit(EXIT_FAILURE);
@@ -172,11 +180,11 @@ main(int argc, char *argv[])
 
     waitpid(child, &status, 0);
 
-    /* unnecessary? */
-    (void)fseek(tempout, 0, SEEK_SET);
-    (void)fseek(temperr, 0, SEEK_SET);
+    if (lseek(fileno(tempout), 0, SEEK_SET) == -1
+	|| lseek(fileno(temperr), 0, SEEK_SET) == -1)
+	syserr(2, "lseek");
 
-    lockfile = getenv(PFX "LOCKFILE");
+    syncfile = getenv(PFX "SYNCFILE");
 
     if ((tee = getenv(PFX "TEE"))) {
 	if (!is_absolute(tee)) {
@@ -185,11 +193,11 @@ main(int argc, char *argv[])
 	    return 2;
 	}
 	teefd = open(tee, O_APPEND | O_WRONLY | O_CREAT, 0644);
-	if (!lockfile) {
-	    lockfile = tee;
-	    lockfd = teefd;
+	if (!syncfile) {
+	    syncfile = tee;
+	    syncfd = teefd;
 	}
-    } else if (!lockfile) {
+    } else if (!syncfile) {
 	char *makelist, *t1, *t2, *lf;
 
 	/*
@@ -207,26 +215,26 @@ main(int argc, char *argv[])
 		*t2 = '\0';
 	    if (!realpath(t1, lf))
 		syserr(2, t1);
-	    lockfile = lf;
+	    syncfile = lf;
 	    free(makelist);
 	} else {
-	    fprintf(stderr, "%s: Error: no lockfile\n", prog);
+	    fprintf(stderr, "%s: Error: no syncfile\n", prog);
 	    return 2;
 	}
     }
 
-    if (!is_absolute(lockfile)) {
+    if (!is_absolute(syncfile)) {
 	fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
-		prog, lockfile);
+		prog, syncfile);
 	return 2;
     }
 
     /*
-     * Note that we NEVER write to the lockfile but must open
+     * Note that we NEVER write to the syncfile but must open
      * it for write in order for lockf() to acquire the lock.
      */
-    if (lockfd == -1 && (lockfd = open(lockfile, O_WRONLY)) == -1)
-	syserr(2, lockfile);
+    if (syncfd == -1 && (syncfd = open(syncfile, O_WRONLY | O_APPEND)) == -1)
+	syserr(0, syncfile);
 
     /*
      * Lockf() is preferred because it works over NFS but we can
@@ -238,44 +246,45 @@ main(int argc, char *argv[])
      * fragility. A Windows port might prefer semaphores though.
      */
 #ifdef F_LOCK
-    if (lockf(lockfd, F_LOCK, 0) == 0) {
+    if (lockf(syncfd, F_LOCK, 0))
+	syserr(0, syncfile);
 #else
-    if (flock(lockfd, LOCK_EX) == 0) {
+    if (flock(syncfd, LOCK_EX))
+	syserr(0, syncfile);
 #endif
-	ssize_t nread;
-	char *headline;
 
-	/*
-	 * Now in the "critical section" during which the lock is held.
-	 * We want to keep it as short as possible.
-	 */
-	if ((headline = getenv(PFX "HEADLINE"))) {
-	    write(STDOUT_FILENO, headline, strlen(headline));
-	    write(STDOUT_FILENO, "\n", 1);
-	}
-	if (teefd > 0) {
-	    lseek(teefd, 0, SEEK_END);
-	    if (headline) {
-		write(teefd, headline, strlen(headline));
-		write(teefd, "\n", 1);
-	    }
-	}
-	while ((nread = fread(buffer, 1, sizeof(buffer), tempout)) > 0) {
-	    write(STDOUT_FILENO, buffer, nread);
-	    if (teefd > 0)
-		write(teefd, buffer, nread);
-	}
-	while ((nread = fread(buffer, 1, sizeof(buffer), temperr)) > 0) {
-	    write(STDERR_FILENO, buffer, nread);
-	    if (teefd > 0)
-		write(teefd, buffer, nread);
-	}
-    } else {
-	syserr(2, lockfile);
+    /*
+     * Now in the "critical section" during which the lock is held.
+     * We want to keep it as short as possible.
+     */
+
+    if ((headline = getenv(PFX "HEADLINE"))) {
+	write(fileno(stdout), headline, strlen(headline));
+	write(fileno(stdout), "\n", 1);
     }
 
-    fclose(tempout);
-    fclose(temperr);
+    if (teefd > 0) {
+	lseek(teefd, 0, SEEK_END);
+	if (headline) {
+	    write(teefd, headline, strlen(headline));
+	    write(teefd, "\n", 1);
+	}
+    }
+
+    while ((nread = fread(buffer, 1, sizeof(buffer), tempout)) > 0) {
+	write(fileno(stdout), buffer, nread);
+	if (teefd > 0)
+	    write(teefd, buffer, nread);
+    }
+
+    while ((nread = fread(buffer, 1, sizeof(buffer), temperr)) > 0) {
+	write(fileno(stderr), buffer, nread);
+	if (teefd > 0)
+	    write(teefd, buffer, nread);
+    }
+
+    (void)fclose(tempout);
+    (void)fclose(temperr);
 
     return status >> 8;
 }
