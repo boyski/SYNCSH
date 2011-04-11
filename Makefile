@@ -10,8 +10,9 @@ minor	:= 1 2 3 4
 .PHONY: test test-good test-bad
 test: test-bad test-good
 test-bad: syncsh
-	@echo "These letter groups will be 'scrambled':"
-	@$(MAKE) --no-print-directory -j$(words $(major)) par
+	@echo "These letter groups may be 'scrambled':"
+	@MAKESYNCFILE=$(abspath $(firstword $(MAKEFILE_LIST))) \
+	    $(MAKE) --no-print-directory -j$(words $(major)) par
 test-good: syncsh
 	@echo "These letter groups should stay together:"
 	@MAKEFILE_LIST= $(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j$(words $(major)) par

@@ -235,7 +235,7 @@ main(int argc, char *argv[])
 
 
     /*
-     * Enter a "critical section" during which the lock is held.
+     * Enter the "critical section" during which a lock is held.
      * We want to keep it as short as possible.
      */
     {
