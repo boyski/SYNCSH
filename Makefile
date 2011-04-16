@@ -11,11 +11,10 @@ minor	:= 1 2 3 4
 test: test-bad test-good
 test-bad: syncsh
 	@echo "These letter groups may be 'scrambled':"
-	@MAKESYNCFILE=$(abspath $(firstword $(MAKEFILE_LIST))) \
-	    $(MAKE) --no-print-directory -j$(words $(major)) par
+	@$(MAKE) --no-print-directory -j$(words $(major)) par
 test-good: syncsh
 	@echo "These letter groups should stay together:"
-	@MAKEFILE_LIST= $(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j$(words $(major)) par
+	@$(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j$(words $(major)) par
 
 .PHONY: par $(major)
 par: $(major)

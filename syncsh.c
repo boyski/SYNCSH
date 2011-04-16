@@ -108,7 +108,7 @@ main(int argc, char *argv[])
     char *sh;
     char *recipe;
     char *tee;
-    char *syncfile;
+    char *syncfile = "STDIN";
     char *verbose = NULL;
     char *shargv[4];
 
@@ -181,8 +181,6 @@ main(int argc, char *argv[])
 	|| lseek(fileno(temperr), 0, SEEK_SET) == -1)
 	syserr(2, "lseek");
 
-    syncfile = getenv(PFX "SYNCFILE");
-
     if ((tee = getenv(PFX "TEE"))) {
 	if (!is_absolute(tee)) {
 	    fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
@@ -190,49 +188,28 @@ main(int argc, char *argv[])
 	    return 2;
 	}
 	teefd = open(tee, O_APPEND | O_WRONLY | O_CREAT, 0644);
-	if (!syncfile) {
-	    syncfile = tee;
-	    syncfd = teefd;
-	}
-    } else if (!syncfile) {
-	char *makelist, *t1, *t2, *lf;
+    }
 
-	/*
-	 * If MAKEFILE_LIST was exported we can get the makefile
-	 * name from it.
-	 */
-	if ((makelist = getenv("MAKEFILE_LIST"))
-	    && (t1 = strdup(makelist))
-	    && (lf = malloc(PATH_MAX + 1))) {
-
-	    makelist = t1;
-	    while (isspace((int)*t1))
-		t1++;
-	    if ((t2 = strchr(t1, ' ')))
-		*t2 = '\0';
-	    if (!realpath(t1, lf))
-		syserr(2, t1);
-	    syncfile = lf;
-	    free(makelist);
-	} else {
-	    fprintf(stderr, "%s: Error: no syncfile\n", prog);
+    if ((syncfile = getenv(PFX "SYNCFILE"))) {
+	if (!is_absolute(syncfile)) {
+	    fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
+		    prog, syncfile);
 	    return 2;
 	}
+
+	/*
+	 * Note that we NEVER write to a syncfile but must open
+	 * it for write in order for fcntl() to acquire the lock.
+	 */
+	if ((syncfd = open(syncfile, O_WRONLY | O_APPEND) == -1))
+	    syserr(0, syncfile);
+    } else {
+	if (fcntl(fileno(stdin), F_GETFL) == -1) {
+	    syserr(0, syncfile);
+	} else {
+	    syncfd = fileno(stdin);
+	}
     }
-
-    if (!is_absolute(syncfile)) {
-	fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
-		prog, syncfile);
-	return 2;
-    }
-
-    /*
-     * Note that we NEVER write to the syncfile but must open
-     * it for write in order for fcntl() to acquire the lock.
-     */
-    if (syncfd == -1 && (syncfd = open(syncfile, O_WRONLY | O_APPEND)) == -1)
-	syserr(0, syncfile);
-
 
     /*
      * Enter the "critical section" during which a lock is held.
@@ -248,7 +225,7 @@ main(int argc, char *argv[])
 	fl.l_type = F_WRLCK;
 	fl.l_whence = SEEK_SET;
 	fl.l_pid = getpid();
-	if (fcntl(syncfd, F_SETLKW, &fl) == -1)
+	if (syncfd >= 0 && fcntl(syncfd, F_SETLKW, &fl) == -1)
 	    syserr(0, syncfile);
 
 	if ((headline = getenv(PFX "HEADLINE"))) {
@@ -278,7 +255,7 @@ main(int argc, char *argv[])
 
 	/* Exit the critical section */
 	fl.l_type = F_UNLCK;
-	if (fcntl(syncfd, F_SETLKW, &fl) == -1)
+	if (syncfd >= 0 && fcntl(syncfd, F_SETLKW, &fl) == -1)
 	    syserr(0, syncfile);
 	close(syncfd);
     }
