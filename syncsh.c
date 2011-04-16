@@ -224,6 +224,8 @@ main(int argc, char *argv[])
 	memset(&fl, 0, sizeof(fl));
 	fl.l_type = F_WRLCK;
 	fl.l_whence = SEEK_SET;
+	fl.l_start = 0;
+	fl.l_len = 1;
 	fl.l_pid = getpid();
 	if (syncfd >= 0 && fcntl(syncfd, F_SETLKW, &fl) == -1)
 	    syserr(0, syncfile);
