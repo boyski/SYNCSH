@@ -3,7 +3,7 @@
  * This is written to the POSIX API and should work
  * on just about any Unix-like system.
  * I know of no reason it couldn't be ported to Windows;
- * it only needs to spawn a subprocess, directing its
+ * it only needs to spawn a subprocess, direct its
  * stdout and stderr into a temp file, and synchronize
  * with other instances of itself. All these are easily
  * doable with the Win32 API. The main question would be
@@ -30,9 +30,17 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#define PFX	"SYNCSH_"
+#define PFX			"SYNCSH_"
 
-#define is_absolute(path)		(*path == '/')
+#define STREAM_OK(strm)		((fcntl(fileno((strm)), F_GETFD) != -1) || (errno != EBADF))
+
+#ifdef EINTR
+#define EINTR_CHECK(lhs,fcn)	while (((lhs)=fcn) == -1 && errno == EINTR)
+#else
+#define EINTR_CHECK(lhs,fcn)	((lhs) = (fcn))
+#endif
+
+#define is_absolute(path)	(*path == '/')
 
 static char *prog = "???";
 
@@ -96,6 +104,61 @@ vb(int fd, const char *prefix, char **argv)
     }
 }
 
+static void
+pump_from_tmp_fd(int from_fd, int to_fd)
+{
+    ssize_t nleft, nwrite;
+    char buffer[8192];
+
+    if (lseek(from_fd, 0, SEEK_SET) == -1)
+	perror("lseek()");
+
+    while (1) {
+	EINTR_CHECK(nleft, read(from_fd, buffer, sizeof(buffer)));
+	if (nleft < 0)
+	    perror("read()");
+	else
+	    while (nleft > 0) {
+		EINTR_CHECK(nwrite, write(to_fd, buffer, nleft));
+		if (nwrite < 0) {
+		    perror("write()");
+		    return;
+		}
+
+		nleft -= nwrite;
+	    }
+
+	if (nleft <= 0)
+	    break;
+    }
+}
+
+static void *
+acquire_semaphore(int fd)
+{
+    static struct flock fl;
+
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_pid = getpid();
+    fl.l_start = fl.l_pid;	/* lock just one byte according to pid */
+    fl.l_len = 1;
+    if (fcntl(fd, F_SETLKW, &fl) != -1)
+	return &fl;
+    perror("fcntl()");
+    return NULL;
+}
+
+static void
+release_semaphore(void *sem, int fd)
+{
+    struct flock *flp = (struct flock *)sem;
+
+    flp->l_type = F_UNLCK;
+    if (fcntl(fd, F_SETLKW, flp) == -1)
+	perror("fcntl()");
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -111,6 +174,7 @@ main(int argc, char *argv[])
     char *syncfile = "STDIN";
     char *verbose = NULL;
     char *shargv[4];
+    void *sem;
 
     prog = basename(argv[0]);
 
@@ -204,31 +268,22 @@ main(int argc, char *argv[])
 	if ((syncfd = open(syncfile, O_WRONLY | O_APPEND) == -1))
 	    syserr(0, syncfile);
     } else {
-	if (fcntl(fileno(stdin), F_GETFL) == -1) {
-	    syserr(0, syncfile);
+	if (STREAM_OK(stdout)) {
+	    syncfd = fileno(stdout);
+	} else if (STREAM_OK(stderr)) {
+	    syncfd = fileno(stderr);
 	} else {
-	    syncfd = fileno(stdin);
+	    syserr(0, "stdout");
 	}
     }
 
-    /*
-     * Enter the "critical section" during which a lock is held.
-     * We want to keep it as short as possible.
-     */
-    {
-	struct flock fl;
+    if ((sem = acquire_semaphore(syncfd))) {
 	char *headline;
-	ssize_t nread;
-	char buffer[8192];
 
-	memset(&fl, 0, sizeof(fl));
-	fl.l_type = F_WRLCK;
-	fl.l_whence = SEEK_SET;
-	fl.l_start = 0;
-	fl.l_len = 1;
-	fl.l_pid = getpid();
-	if (syncfd >= 0 && fcntl(syncfd, F_SETLKW, &fl) == -1)
-	    syserr(0, syncfile);
+	/*
+	 * We've entered the "critical section" during which a lock is held.
+	 * We want to keep it as short as possible.
+	 */
 
 	if ((headline = getenv(PFX "HEADLINE"))) {
 	    write(fileno(stdout), headline, strlen(headline));
@@ -243,27 +298,24 @@ main(int argc, char *argv[])
 	    }
 	}
 
-	while ((nread = fread(buffer, 1, sizeof(buffer), tempout)) > 0) {
-	    write(fileno(stdout), buffer, nread);
+	if (tempout) {
+	    pump_from_tmp_fd(fileno(tempout), fileno(stdout));
 	    if (teefd > 0)
-		write(teefd, buffer, nread);
+		pump_from_tmp_fd(fileno(tempout), teefd);
+	    fclose(tempout);
 	}
-
-	while ((nread = fread(buffer, 1, sizeof(buffer), temperr)) > 0) {
-	    write(fileno(stderr), buffer, nread);
+	if (temperr && temperr != tempout) {
+	    pump_from_tmp_fd(fileno(temperr), fileno(stderr));
 	    if (teefd > 0)
-		write(teefd, buffer, nread);
+		pump_from_tmp_fd(fileno(temperr), teefd);
+	    fclose(temperr);
 	}
 
 	/* Exit the critical section */
-	fl.l_type = F_UNLCK;
-	if (syncfd >= 0 && fcntl(syncfd, F_SETLKW, &fl) == -1)
-	    syserr(0, syncfile);
-	close(syncfd);
+	release_semaphore(sem, syncfd);
     }
 
-    (void)fclose(tempout);
-    (void)fclose(temperr);
+    close(syncfd);
 
     return status >> 8;
 }
