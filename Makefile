@@ -1,3 +1,5 @@
+SHELL	:= /bin/bash
+
 .PHONY: all
 all: syncsh
 
@@ -21,10 +23,15 @@ par: $(major)
 $(major):
 	@for n in $(minor); do echo $@$$n; sleep 1 ; done
 
-.PHONY: install
-install: all test-good
-	mv syncsh ${HOME}/${CPU}/bin
-
 .PHONY: clean
 clean:
 	$(RM) -f syncsh *.exe *~ OUT
+
+installed	:= $(shell type -p syncsh)
+.PHONY: install
+install: all test-good
+ifeq (,$(installed))
+	@echo "First install must be manual!"; exit 1
+else
+	mv syncsh $(installed)
+endif
