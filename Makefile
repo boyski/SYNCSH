@@ -1,5 +1,3 @@
-SHELL	:= /bin/bash
-
 .PHONY: all
 all: syncsh
 
@@ -27,7 +25,7 @@ $(major):
 clean:
 	$(RM) -f syncsh *.exe *~ OUT
 
-installed	:= $(shell type -p syncsh)
+installed	:= $(shell bash -c "type -p syncsh")
 .PHONY: install
 install: all test-good
 ifeq (,$(installed))
