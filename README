@@ -13,13 +13,14 @@ real shell and coordinates with other running instances of itself
 before printing those results to stdout. The result is that the
 output of each make "recipe" is written atomically.
 
-It's important to understand that syncsh does not hold the lock for
-all the time its job is running; that would force jobs to run
-serially and make the parallel build a no-op. Instead, each job is
-allowed to run freely and the lock is only grabbed for as long as
-required to write its output.
+Synchronization is achieved by use of a semaphore.  It's important
+to understand that syncsh does not hold the semaphore for the
+entire time its job is running; that would force jobs to run
+serially and make parallel builds a no-op. Instead, each job is
+allowed to run freely and the semaphore is only acquired for as
+long as required to write its output.
 
-Thus syncsh will "re-synchronize" the output of asynchronous jobs.
+Thus syncsh will re-synchronize the output of asynchronous jobs.
 Note that no guarantee is made that jobs will report in the "right"
 order (since in parallel processing there is no right order), only
 that the order will be sensible and that the results of different
@@ -38,24 +39,18 @@ Which is the only usage pattern syncsh currently understands. It
 _should_ work with any parallel build program which uses this
 pattern.
 
-IMPORTANT: syncsh needs a file to use for synchronization
-purposes.  This file must be writeable, although syncsh will NOT
-actually write to it (this is a requirement of the lockf() API).  A
-good candidate would be the top-level Makefile. Thus, for example,
-you could enable syncsh by adding the following lines to a GNU
-makefile:
+For example, you could enable syncsh by adding the following line
+to a GNU makefile:
 
 SHELL		:= /full/path/to/syncsh
-SYNCSH_SHELL	:= /bin/bash
 
-Note that the above example also specifies a shell to hand off to
-(default is /bin/sh of course). Syncsh can also be used without
-modifying makefiles at all:
+Syncsh can also be used without modifying makefiles at all:
 
 % gmake SHELL=/full/path/to/syncsh -j12 ...
 
-There may be other useful SYNCSH_* environment variables; see the
-usage message or the source code. Run with no arguments for usage.
+There are a few other useful SYNCSH_* environment variables; see
+the usage message or the source code. Run with no arguments for
+usage.
 
 This package includes a sample "jmake" script which shows how
 this can be bound up in a wrapper.
@@ -80,3 +75,14 @@ that GNU make will normally avoid using an intermediate shell at
 all when possible but this behavior is suppressed when SHELL is
 assigned to. Thus by setting SHELL=<syncsh> we guarantee syncsh
 will be used for every recipe.
+
+As an advanced feature, you can force certain recipes to run
+serially by setting the environment variable SYNCSH_SERIALIZE to a
+regular expression. Any recipe which matches the regexp will cause
+syncsh to hold the semaphore for its entire duration, thus
+guaranteeing it will be the only recipe running at that time.
+FOr example:
+
+    export SYNCSH_SERIALIZE='[AC]'
+
+will serialize all recipes containing the characters 'A' or 'C'.
