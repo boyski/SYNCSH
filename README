@@ -85,4 +85,7 @@ FOr example:
 
     export SYNCSH_SERIALIZE='[AC]'
 
-will serialize all recipes containing the characters 'A' or 'C'.
+will serialize all recipes containing the characters 'A' or 'C'. This
+variable, of course, could also be exported directly from the makefile:
+
+    export SYNCSH_SERIALIZE := [AC]
