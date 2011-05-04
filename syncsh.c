@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <libgen.h>
+#include <regex.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -244,14 +245,26 @@ main(int argc, char *argv[])
 
     /*
      * We could be asked to serialize a certain type of recipe
-     * in which case the semaphore is taken before the fork
-     * and we don't need to bother about tempfiles. Otherwise,
-     * prepare the tempfiles.
+     * in which case the semaphore is acquired *before* the fork
+     * and we don't need to bother about tempfiles.
      */
-    if ((serialize = (getenv(PFX "SERIALIZE")))
-	    && (strstr(recipe, serialize))) {
-	sem = acquire_semaphore(syncfd);
-    } else {
+    if ((serialize = getenv(PFX "SERIALIZE"))) {
+	regex_t re;
+
+	if (regcomp(&re, serialize, REG_EXTENDED | REG_NOSUB)) {
+	    /* TODO - generate a better error message */
+	    fprintf(stderr, "%s: Error: bad regular expression '%s'\n", prog,
+		    serialize);
+	} else {
+	    if (!regexec(&re, recipe, (size_t)0, NULL, 0)) {
+		sem = acquire_semaphore(syncfd);
+	    }
+	    regfree(&re);
+	}
+    }
+
+    /* Otherwise, * prepare the tempfiles. */
+    if (!sem) {
 	if (!(tempout = tmpfile()) || !(temperr = tmpfile())) {
 	    syserr(2, "tmpfile");
 	}
@@ -261,11 +274,11 @@ main(int argc, char *argv[])
     child = vfork();
     if (child == (pid_t) 0) {
 	if (tempout && (close(fileno(stdout)) == -1
-	    || (dup2(fileno(tempout), fileno(stdout)) == -1)))
+			|| (dup2(fileno(tempout), fileno(stdout)) == -1)))
 	    syserr(2, "dup2(stdout)");
 
 	if (temperr && (close(fileno(stderr)) == -1
-	    || (dup2(fileno(temperr), fileno(stderr)) == -1)))
+			|| (dup2(fileno(temperr), fileno(stderr)) == -1)))
 	    syserr(2, "dup2(stderr)");
 
 	execvp(shargv[0], shargv);
