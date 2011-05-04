@@ -80,12 +80,13 @@ dbg(const char *fmt, ...)
 static void
 usage(void)
 {
-    const char *fmt = "  %-16s %s\n";
+    const char *fmt = "  %-18s %s\n";
 
     fprintf(stderr, "Usage: %s -<flags> <command>\n", prog);
     fprintf(stderr, "  " "where <flags> will typically be -c\n");
     fprintf(stderr, "Environment variables:\n");
     fprintf(stderr, fmt, PFX "HEADLINE:", "string to print before output");
+    fprintf(stderr, fmt, PFX "SERIALIZE:", "pattern for serializable recipes");
     fprintf(stderr, fmt, PFX "SHELL:", "path of shell to hand off to");
     fprintf(stderr, fmt, PFX "SYNCFILE:", "full path to a writable lock file");
     fprintf(stderr, fmt, PFX "TEE:", "file to which output will be appended");
@@ -166,15 +167,16 @@ main(int argc, char *argv[])
     int teefd = -1;
     int syncfd = -1;
     pid_t child;
-    FILE *tempout;
-    FILE *temperr;
+    FILE *tempout = NULL;
+    FILE *temperr = NULL;
     char *sh;
     char *recipe;
     char *tee;
     char *syncfile = "STDIN";
     char *verbose = NULL;
+    char *serialize;
     char *shargv[4];
-    void *sem;
+    void *sem = NULL;
 
     prog = basename(argv[0]);
 
@@ -214,46 +216,6 @@ main(int argc, char *argv[])
     shargv[2] = recipe = argv[2];
     shargv[3] = NULL;
 
-    if (!(tempout = tmpfile()) || !(temperr = tmpfile())) {
-	syserr(2, "tmpfile");
-    }
-
-    if (verbose)
-	vb(fileno(temperr), verbose, shargv + 2);
-
-    /* GNU make uses vfork so we do too */
-    child = vfork();
-    if (child == (pid_t) 0) {
-	int outfd = fileno(stdout);
-	int errfd = fileno(stderr);
-
-	if ((close(outfd) == -1)
-	    || (dup2(fileno(tempout), outfd) == -1)
-	    || (close(errfd) == -1)
-	    || (dup2(fileno(temperr), errfd) == -1))
-	    syserr(2, "dup2");
-	execvp(shargv[0], shargv);
-	perror(shargv[0]);
-	exit(EXIT_FAILURE);
-    } else if (child == (pid_t) - 1) {
-	syserr(2, "fork");
-    }
-
-    waitpid(child, &status, 0);
-
-    if (lseek(fileno(tempout), 0, SEEK_SET) == -1
-	|| lseek(fileno(temperr), 0, SEEK_SET) == -1)
-	syserr(2, "lseek");
-
-    if ((tee = getenv(PFX "TEE"))) {
-	if (!is_absolute(tee)) {
-	    fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
-		    prog, tee);
-	    return 2;
-	}
-	teefd = open(tee, O_APPEND | O_WRONLY | O_CREAT, 0644);
-    }
-
     if ((syncfile = getenv(PFX "SYNCFILE"))) {
 	if (!is_absolute(syncfile)) {
 	    fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
@@ -277,7 +239,60 @@ main(int argc, char *argv[])
 	}
     }
 
-    if ((sem = acquire_semaphore(syncfd))) {
+    if (verbose)
+	vb(fileno(temperr), verbose, shargv + 2);
+
+    /*
+     * We could be asked to serialize a certain type of recipe
+     * in which case the semaphore is taken before the fork
+     * and we don't need to bother about tempfiles. Otherwise,
+     * prepare the tempfiles.
+     */
+    if ((serialize = (getenv(PFX "SERIALIZE")))
+	    && (strstr(recipe, serialize))) {
+	sem = acquire_semaphore(syncfd);
+    } else {
+	if (!(tempout = tmpfile()) || !(temperr = tmpfile())) {
+	    syserr(2, "tmpfile");
+	}
+    }
+
+    /* GNU make uses vfork so we do too */
+    child = vfork();
+    if (child == (pid_t) 0) {
+	if (tempout && (close(fileno(stdout)) == -1
+	    || (dup2(fileno(tempout), fileno(stdout)) == -1)))
+	    syserr(2, "dup2(stdout)");
+
+	if (temperr && (close(fileno(stderr)) == -1
+	    || (dup2(fileno(temperr), fileno(stderr)) == -1)))
+	    syserr(2, "dup2(stderr)");
+
+	execvp(shargv[0], shargv);
+	perror(shargv[0]);
+	exit(EXIT_FAILURE);
+    } else if (child == (pid_t) - 1) {
+	syserr(2, "fork");
+    }
+
+    waitpid(child, &status, 0);
+
+    if (tempout && lseek(fileno(tempout), 0, SEEK_SET) == -1)
+	syserr(2, "lseek(stdout)");
+
+    if (temperr && lseek(fileno(temperr), 0, SEEK_SET) == -1)
+	syserr(2, "lseek(stderr)");
+
+    if ((tee = getenv(PFX "TEE"))) {
+	if (!is_absolute(tee)) {
+	    fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
+		    prog, tee);
+	    return 2;
+	}
+	teefd = open(tee, O_APPEND | O_WRONLY | O_CREAT, 0644);
+    }
+
+    if (!sem && (sem = acquire_semaphore(syncfd))) {
 	char *headline;
 
 	/*
@@ -310,10 +325,11 @@ main(int argc, char *argv[])
 		pump_from_tmp_fd(fileno(temperr), teefd);
 	    fclose(temperr);
 	}
-
-	/* Exit the critical section */
-	release_semaphore(sem, syncfd);
     }
+
+    /* Exit the critical section */
+    if (sem)
+	release_semaphore(sem, syncfd);
 
     close(syncfd);
 
