@@ -46,14 +46,13 @@ you could enable syncsh by adding the following lines to a GNU
 makefile:
 
 SHELL		:= /full/path/to/syncsh
-SYNCSH_SYNCFILE	:= $(CURDIR)/Makefile
 SYNCSH_SHELL	:= /bin/bash
 
-Note that this example also specifies the shell to hand off to
+Note that the above example also specifies a shell to hand off to
 (default is /bin/sh of course). Syncsh can also be used without
 modifying makefiles at all:
 
-% SYNCSH_SYNCFILE=`pwd`/Makefile gmake SHELL=/full/path/to/syncsh -j12 ...
+% gmake SHELL=/full/path/to/syncsh -j12 ...
 
 There may be other useful SYNCSH_* environment variables; see the
 usage message or the source code. Run with no arguments for usage.

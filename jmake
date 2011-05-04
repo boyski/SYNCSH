@@ -5,7 +5,6 @@
 
 use Cwd qw(realpath);
 use File::Basename;
-use File::Glob qw(:glob);
 use Getopt::Long qw(:config pass_through no_ignore_case);
 
 # Parse out a special flag (-V) unused by GNU make, which 
@@ -14,13 +13,6 @@ my %opt;
 GetOptions(\%opt, 'Verbose:s');
 $ENV{SYNCSH_VERBOSE} ||= $opt{Verbose} || '' if exists($opt{Verbose});
 unshift(@ARGV, '-s') if exists($ENV{SYNCSH_VERBOSE});
-
-# Find a writable file to serve as the syncfile. Prefer to use
-# something in the cwd but fall back to anything in ~ (which is
-# less ideal because of potential contention with other builds).
-$ENV{SYNCSH_SYNCFILE} ||= realpath((grep -w, bsd_glob("*akefile"))[0]
-			|| (grep -w, bsd_glob("*"))[0]
-			|| (grep -w, bsd_glob("$ENV{HOME}/*"))[0]);
 
 my $make = 'gmake';
 my $syncsh = sprintf "SHELL=%s/syncsh", dirname($0);

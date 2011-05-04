@@ -89,7 +89,6 @@ usage(void)
     fprintf(stderr, fmt, PFX "HEADLINE:", "string to print before output");
     fprintf(stderr, fmt, PFX "SERIALIZE:", "pattern for serializable recipes");
     fprintf(stderr, fmt, PFX "SHELL:", "path of shell to hand off to");
-    fprintf(stderr, fmt, PFX "SYNCFILE:", "full path to a writable lock file");
     fprintf(stderr, fmt, PFX "TEE:", "file to which output will be appended");
     fprintf(stderr, fmt, PFX "VERBOSE:", "print recipe with this prefix");
     exit(1);
@@ -173,7 +172,6 @@ main(int argc, char *argv[])
     char *sh;
     char *recipe;
     char *tee;
-    char *syncfile = "STDIN";
     char *verbose = NULL;
     char *serialize;
     char *shargv[4];
@@ -217,27 +215,12 @@ main(int argc, char *argv[])
     shargv[2] = recipe = argv[2];
     shargv[3] = NULL;
 
-    if ((syncfile = getenv(PFX "SYNCFILE"))) {
-	if (!is_absolute(syncfile)) {
-	    fprintf(stderr, "%s: Error: '%s' not an absolute path\n",
-		    prog, syncfile);
-	    return 2;
-	}
-
-	/*
-	 * Note that we NEVER write to a syncfile but must open
-	 * it for write in order for fcntl() to acquire the lock.
-	 */
-	if ((syncfd = open(syncfile, O_WRONLY | O_APPEND) == -1))
-	    syserr(0, syncfile);
+    if (STREAM_OK(stdout)) {
+	syncfd = fileno(stdout);
+    } else if (STREAM_OK(stderr)) {
+	syncfd = fileno(stderr);
     } else {
-	if (STREAM_OK(stdout)) {
-	    syncfd = fileno(stdout);
-	} else if (STREAM_OK(stderr)) {
-	    syncfd = fileno(stderr);
-	} else {
-	    syserr(0, "stdout");
-	}
+	syserr(0, "stdout");
     }
 
     if (verbose)
