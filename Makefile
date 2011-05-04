@@ -7,14 +7,14 @@ syncsh: syncsh.c
 major	:= A B C D E
 minor	:= 1 2 3 4
 
-.PHONY: test test-good test-bad
-test: test-bad test-good
-test-bad: syncsh
+.PHONY: test test-sync test-normal
+test: test-normal test-sync
+test-normal: syncsh
 	@echo "These letter groups may be 'scrambled':"
-	@$(MAKE) --no-print-directory -j$(words $(major)) par
-test-good: syncsh
+	@$(MAKE) --no-print-directory -j par
+test-sync: syncsh
 	@echo "These letter groups should stay together:"
-	@$(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j$(words $(major)) par
+	@$(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j par
 
 .PHONY: par $(major)
 par: $(major)
@@ -27,7 +27,7 @@ clean:
 
 installed	:= $(shell bash -c "type -p syncsh")
 .PHONY: install
-install: all test-good
+install: all test-sync
 ifeq (,$(installed))
 	@echo "First install must be manual!"; exit 1
 else

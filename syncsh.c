@@ -105,6 +105,19 @@ vb(int fd, const char *prefix, char **argv)
     }
 }
 
+static uint16_t
+str_hash(char *str, unsigned len)
+{
+    uint16_t hash = 0;
+    uint16_t i = 0;
+
+    for (i = 0; i < len; str++, i++) {
+	hash = (*str) + (hash << 6) + (hash << 16) - hash;
+    }
+
+    return hash >> 1;
+}
+
 static void
 pump_from_tmp_fd(int from_fd, int to_fd)
 {
@@ -135,14 +148,14 @@ pump_from_tmp_fd(int from_fd, int to_fd)
 }
 
 static void *
-acquire_semaphore(int fd)
+acquire_semaphore(int fd, pid_t pid, off_t off)
 {
     static struct flock fl;
 
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
-    fl.l_pid = getpid();
-    fl.l_start = fl.l_pid;	/* lock just one byte according to pid */
+    fl.l_pid = pid;
+    fl.l_start = off;		/* lock just one byte */
     fl.l_len = 1;
     if (fcntl(fd, F_SETLKW, &fl) != -1)
 	return &fl;
@@ -176,12 +189,15 @@ main(int argc, char *argv[])
     char *serialize;
     char *shargv[4];
     void *sem = NULL;
+    pid_t thispid;
 
     prog = basename(argv[0]);
 
     if (argc <= 1 || !strcmp(argv[1], "-h") || strstr(argv[1], "help")) {
 	usage();
     }
+
+    thispid = getpid();
 
     verbose = getenv(PFX "VERBOSE");
 
@@ -234,13 +250,18 @@ main(int argc, char *argv[])
     if ((serialize = getenv(PFX "SERIALIZE"))) {
 	regex_t re;
 
-	if (regcomp(&re, serialize, REG_EXTENDED | REG_NOSUB)) {
+	if (regcomp(&re, serialize, REG_EXTENDED)) {
 	    /* TODO - generate a better error message */
 	    fprintf(stderr, "%s: Error: bad regular expression '%s'\n", prog,
 		    serialize);
 	} else {
-	    if (!regexec(&re, recipe, (size_t)0, NULL, 0)) {
-		sem = acquire_semaphore(syncfd);
+	    regmatch_t pm[1];
+
+	    if (!regexec(&re, recipe, 1, pm, 0)) {
+		off_t hash;
+
+		hash = str_hash(serialize, strlen(serialize));
+		sem = acquire_semaphore(syncfd, thispid, hash);
 	    }
 	    regfree(&re);
 	}
@@ -288,7 +309,7 @@ main(int argc, char *argv[])
 	teefd = open(tee, O_APPEND | O_WRONLY | O_CREAT, 0644);
     }
 
-    if (!sem && (sem = acquire_semaphore(syncfd))) {
+    if (!sem && (sem = acquire_semaphore(syncfd, thispid, thispid))) {
 	char *headline;
 
 	/*

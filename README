@@ -76,12 +76,15 @@ all when possible but this behavior is suppressed when SHELL is
 assigned to. Thus by setting SHELL=<syncsh> we guarantee syncsh
 will be used for every recipe.
 
-As an advanced feature, you can force certain recipes to run
-serially by setting the environment variable SYNCSH_SERIALIZE to a
-regular expression. Any recipe which matches the regexp will cause
-syncsh to hold the semaphore for its entire duration, thus
-guaranteeing it will be the only recipe running at that time.
-FOr example:
+As an advanced feature, you can force a certain set of recipes to
+run serially by setting the environment variable SYNCSH_SERIALIZE
+to a regular expression. Any recipe which matches the regexp will
+cause syncsh to hold a special semaphore derived from the regexp
+*for its entire duration*.  The net effect should be to guarantee
+that only one recipe which matches the regexp is running at a
+time.  Recipes which do not match use the default semaphore and
+thus do not get stuck behind these "serialized" jobs.  For
+example:
 
     export SYNCSH_SERIALIZE='[AC]'
 
