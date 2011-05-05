@@ -160,7 +160,8 @@ acquire_semaphore(int fd, pid_t pid, uint16_t off)
     fl.l_start = off;		/* lock just one byte */
     fl.l_len = 1;
     if (fcntl(fd, F_SETLKW, &fl) != -1) {
-	//fprintf(stderr, "Locked byte %d.%u for '%s'\n", fd, off, recipe);
+	if (getenv(PFX "DEBUG"))
+	    fprintf(stderr, "Locked byte %d.%u for '%s'\n", fd, off, recipe);
 	return &fl;
     }
     perror("fcntl()");

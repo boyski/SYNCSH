@@ -7,14 +7,17 @@ syncsh: syncsh.c
 major	:= A B C D E
 minor	:= 1 2 3 4
 
-.PHONY: test test-sync test-normal
-test: test-normal test-sync
+.PHONY: test test-normal test-sync test-serial
+test: test-normal test-sync test-serial
 test-normal: syncsh
 	@echo "These letter groups may be 'scrambled':"
 	@$(MAKE) --no-print-directory -j par
 test-sync: syncsh
 	@echo "These letter groups should stay together:"
 	@$(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j par
+test-serial: syncsh
+	@echo "These letter groups should stay together, except that 'D' runs serially:"
+	@SYNCSH_SERIALIZE="echo D" $(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j par
 
 .PHONY: par $(major)
 par: $(major)
