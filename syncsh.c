@@ -91,6 +91,7 @@ usage(void)
     fprintf(stderr, fmt, PFX "HEADLINE:", "string to print before output");
     fprintf(stderr, fmt, PFX "SERIALIZE:", "pattern for serializable recipes");
     fprintf(stderr, fmt, PFX "SHELL:", "path of shell to hand off to");
+    //fprintf(stderr, fmt, PFX "SYNCFILE:", "full path to a writable lock file");
     fprintf(stderr, fmt, PFX "TEE:", "file to which output will be appended");
     fprintf(stderr, fmt, PFX "VERBOSE:", "print recipe with this prefix");
     exit(1);
@@ -161,7 +162,7 @@ acquire_semaphore(int fd, pid_t pid, uint16_t off)
     fl.l_len = 1;
     if (fcntl(fd, F_SETLKW, &fl) != -1) {
 	if (getenv(PFX "DEBUG"))
-	    fprintf(stderr, "Locked byte %d.%u for '%s'\n", fd, off, recipe);
+	    fprintf(stderr, "%s: locked byte %d.%u for '%s'\n", prog, fd, off, recipe);
 	return &fl;
     }
     perror("fcntl()");
@@ -189,6 +190,7 @@ main(int argc, char *argv[])
     FILE *temperr = NULL;
     char *sh;
     char *tee;
+    char *syncfile;
     char *verbose = NULL;
     char *serialize;
     char *shargv[4];
@@ -237,12 +239,30 @@ main(int argc, char *argv[])
     shargv[2] = recipe;
     shargv[3] = NULL;
 
-    if (STREAM_OK(stdout)) {
-	syncfd = fileno(stdout);
-    } else if (STREAM_OK(stderr)) {
-	syncfd = fileno(stderr);
+    if ((syncfile = getenv(PFX "SYNCFILE"))) {
+	if (!is_absolute(syncfile)) {
+	    fprintf(stderr, "%s: Error: '%s' must be an absolute path\n",
+		    prog, syncfile);
+	    return 2;
+	}
+
+	/*
+	 * Note that we NEVER write to a syncfile but must open
+	 * it for write in order for fcntl() to acquire the lock.
+	 */
+	if ((syncfd = open(syncfile, O_WRONLY | O_APPEND) == -1)) {
+	    syserr(0, syncfile);
+	} else if (getenv(PFX "DEBUG")) {
+	    fprintf(stderr, "%s: syncing with %d=%s\n", prog, syncfd, syncfile);
+	}
     } else {
-	syserr(0, "stdout");
+	if (STREAM_OK(stdout)) {
+	    syncfd = fileno(stdout);
+	} else if (STREAM_OK(stderr)) {
+	    syncfd = fileno(stderr);
+	} else {
+	    syserr(0, "stdout");
+	}
     }
 
     if (verbose)
@@ -273,7 +293,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    /* Otherwise, * prepare the tempfiles. */
+    /* Otherwise, prepare the tempfiles. */
     if (!sem) {
 	if (!(tempout = tmpfile()) || !(temperr = tmpfile())) {
 	    syserr(2, "tmpfile");

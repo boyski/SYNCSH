@@ -17,7 +17,7 @@ test-sync: syncsh
 	@$(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j par
 test-serial: syncsh
 	@echo "These letter groups should stay together, except that 'D' runs serially:"
-	@SYNCSH_SERIALIZE="echo D" $(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j par
+	SYNCSH_SERIALIZE="echo D" $(MAKE) SHELL=$(CURDIR)/syncsh --no-print-directory -j par
 
 .PHONY: par $(major)
 par: $(major)
