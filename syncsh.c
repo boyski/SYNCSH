@@ -44,7 +44,8 @@
 
 #define is_absolute(path)	(*path == '/')
 
-static char *prog = "???";
+static char *prog = "??";
+static char *recipe = "???";
 
 static void
 syserr_(const char *f, int l, int code, const char *ex)
@@ -149,7 +150,7 @@ pump_from_tmp_fd(int from_fd, int to_fd)
 }
 
 static void *
-acquire_semaphore(int fd, pid_t pid, off_t off)
+acquire_semaphore(int fd, pid_t pid, uint16_t off)
 {
     static struct flock fl;
 
@@ -158,8 +159,10 @@ acquire_semaphore(int fd, pid_t pid, off_t off)
     fl.l_pid = pid;
     fl.l_start = off;		/* lock just one byte */
     fl.l_len = 1;
-    if (fcntl(fd, F_SETLKW, &fl) != -1)
+    if (fcntl(fd, F_SETLKW, &fl) != -1) {
+	//fprintf(stderr, "Locked byte %d.%u for '%s'\n", fd, off, recipe);
 	return &fl;
+    }
     perror("fcntl()");
     return NULL;
 }
@@ -184,7 +187,6 @@ main(int argc, char *argv[])
     FILE *tempout = NULL;
     FILE *temperr = NULL;
     char *sh;
-    char *recipe;
     char *tee;
     char *verbose = NULL;
     char *serialize;
@@ -199,6 +201,8 @@ main(int argc, char *argv[])
     }
 
     thispid = getpid();
+
+    recipe = argv[2];
 
     verbose = getenv(PFX "VERBOSE");
 
@@ -229,7 +233,7 @@ main(int argc, char *argv[])
 
     shargv[0] = sh;
     shargv[1] = argv[1];
-    shargv[2] = recipe = argv[2];
+    shargv[2] = recipe;
     shargv[3] = NULL;
 
     if (STREAM_OK(stdout)) {
@@ -259,7 +263,7 @@ main(int argc, char *argv[])
 	    regmatch_t pm[1];
 
 	    if (!regexec(&re, recipe, 1, pm, 0)) {
-		off_t hash;
+		uint16_t hash;
 
 		hash = str_hash(serialize, strlen(serialize));
 		sem = acquire_semaphore(syncfd, thispid, hash);
@@ -310,7 +314,7 @@ main(int argc, char *argv[])
 	teefd = open(tee, O_APPEND | O_WRONLY | O_CREAT, 0644);
     }
 
-    if (!sem && (sem = acquire_semaphore(syncfd, thispid, thispid))) {
+    if (!sem && (sem = acquire_semaphore(syncfd, thispid, 0))) {
 	char *headline;
 
 	/*
