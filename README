@@ -29,15 +29,15 @@ enhance syncsh to guarantee results in the same order as a serial
 build but that would require some help from, and thus changes to,
 the make program.
 
-Though GNU make is not an archtitectural requirement, this program
-was written with the intention of use with GNU make. Any make
-program will run its commands by calling the shell like this
+Though GNU make is not an architectural requirement, syncsh was
+written with the expectation of use with GNU make. Any make program
+typically runs its commands by calling the shell like this
 
     /bin/sh -c "command"
 
 Which is the only usage pattern syncsh currently understands. It
-_should_ work with any parallel build program which uses this
-pattern.
+_should_ work with any parallel build program which runs its
+commands as (SHELL FLAGS "COMMAND").
 
 For example, you could enable syncsh by adding the following line
 to a GNU makefile:
